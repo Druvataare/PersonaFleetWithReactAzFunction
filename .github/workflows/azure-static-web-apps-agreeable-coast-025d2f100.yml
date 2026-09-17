@@ -40,6 +40,10 @@ jobs:
       - name: Production smoke test
         run: npm run smoke
 
+      # Every page at phone, tablet and desktop widths, and axe WCAG 2.1 AA in all seven themes.
+      - name: Layout and accessibility audit
+        run: npm run audit
+
       - name: Get Id Token
         id: idtoken
         uses: actions/github-script@v9

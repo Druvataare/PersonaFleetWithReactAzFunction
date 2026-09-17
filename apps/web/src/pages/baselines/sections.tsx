@@ -14,6 +14,7 @@ import { Avatar } from "../../components/Avatar.tsx";
 import { Icon } from "../../components/Icon.tsx";
 import { ChartType, Panel } from "../../components/ui.tsx";
 import { BASELINE_FIELDS, fieldValue, fitTotals, pctOf } from "../../lib/baselines.ts";
+import { blend, readableOn } from "../../lib/contrast.ts";
 import { gb, toneColor } from "../../lib/format.ts";
 import type { Palette } from "../../theme/themes.ts";
 import { bandColor, usePalette } from "../../theme/usePalette.ts";
@@ -298,11 +299,16 @@ interface TablesProps {
 
 export function ComponentTables({ rows, personas, defaults, onPick }: TablesProps) {
   const C = usePalette();
-  const cell = (v: number) => (
-    <td className="m" style={{ color: cellTone(v, C), background: cellTone(v, C) + "1A" }}>
-      {v}%
-    </td>
-  );
+  const cell = (v: number) => {
+    const tone = cellTone(v, C);
+    /* A 10% tint of the tone behind the number; the number is nudged only if the tint drops it below 4.5:1. */
+    const color = readableOn(tone, blend(tone, C.panel, 0.1), C.text);
+    return (
+      <td className="m" style={{ color, background: tone + "1A" }}>
+        {v}%
+      </td>
+    );
+  };
   const heat = [...rows].sort((a, b) => a.cpuPct + a.ramPct + a.ssdPct - (b.cpuPct + b.ramPct + b.ssdPct));
   const ref = [...personas].sort((a, b) => a.baseline.cpuScore - b.baseline.cpuScore);
   const edited = (v: boolean) => ({ color: v ? C.accent : "var(--dim)" });

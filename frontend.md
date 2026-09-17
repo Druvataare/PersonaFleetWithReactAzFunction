@@ -14,20 +14,20 @@ Building the React front end from the `personalfleet.html` wireframe, using the 
 
 ## Progress
 
-| #   | Step                       | Status      | Date approved |
-| --- | -------------------------- | ----------- | ------------- |
-| 1   | Project scaffold           | Done        | 17 Sep 2026   |
-| 2   | Scoring package            | Done        | 17 Sep 2026   |
-| 3   | Sample data + mock API     | Done        | 17 Sep 2026   |
-| 4   | App shell                  | Done        | 17 Sep 2026   |
-| 5   | Chart library              | Done        | 17 Sep 2026   |
-| 6   | Personas page              | Done        | 17 Sep 2026   |
-| 7   | Persona page + Device page | Done        | 17 Sep 2026   |
-| 8   | Baselines page             | Done        | 17 Sep 2026   |
-| 9   | Tickets page               | Done        | 17 Sep 2026   |
-| 10  | Change page + Switch page  | Done        | 17 Sep 2026   |
-| 11  | Guided tour                | Testing     |               |
-| 12  | Quality pass + deploy      | Not started |               |
+| #   | Step                       | Status  | Date approved |
+| --- | -------------------------- | ------- | ------------- |
+| 1   | Project scaffold           | Done    | 17 Sep 2026   |
+| 2   | Scoring package            | Done    | 17 Sep 2026   |
+| 3   | Sample data + mock API     | Done    | 17 Sep 2026   |
+| 4   | App shell                  | Done    | 17 Sep 2026   |
+| 5   | Chart library              | Done    | 17 Sep 2026   |
+| 6   | Personas page              | Done    | 17 Sep 2026   |
+| 7   | Persona page + Device page | Done    | 17 Sep 2026   |
+| 8   | Baselines page             | Done    | 17 Sep 2026   |
+| 9   | Tickets page               | Done    | 17 Sep 2026   |
+| 10  | Change page + Switch page  | Done    | 17 Sep 2026   |
+| 11  | Guided tour                | Done    | 17 Sep 2026   |
+| 12  | Quality pass + deploy      | Testing |               |
 
 Status values: `Not started` · `In progress` · `Testing` · `Done`
 
@@ -327,19 +327,20 @@ Status values: `Not started` · `In progress` · `Testing` · `Done`
 
 ## Commands
 
-| Command                 | What it does                                                                                                    |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `npm install`           | Install all workspace dependencies                                                                              |
-| `npm run dev`           | Start the web app at http://localhost:5173                                                                      |
-| `npm run build`         | Typecheck and build the web app into `apps/web/dist`                                                            |
-| `npm run preview`       | Serve the production build locally                                                                              |
-| `npm test`              | Run all Vitest tests (web + scoring)                                                                            |
-| `npm run test:watch`    | Run tests in watch mode                                                                                         |
-| `npm run test:coverage` | Run tests with a coverage report (HTML in `coverage/`)                                                          |
-| `npm run typecheck`     | Typecheck every workspace                                                                                       |
-| `npm run lint`          | ESLint across the repository                                                                                    |
-| `npm run format`        | Format with Prettier (`format:check` to verify only)                                                            |
-| `npm run smoke`         | Click through the production build in Chrome (run `npm run build` first; `SMOKE_URL=…` to test a deployed site) |
+| Command                 | What it does                                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm install`           | Install all workspace dependencies                                                                                                    |
+| `npm run dev`           | Start the web app at http://localhost:5173                                                                                            |
+| `npm run build`         | Typecheck and build the web app into `apps/web/dist`                                                                                  |
+| `npm run preview`       | Serve the production build locally                                                                                                    |
+| `npm test`              | Run all Vitest tests (web + scoring)                                                                                                  |
+| `npm run test:watch`    | Run tests in watch mode                                                                                                               |
+| `npm run test:coverage` | Run tests with a coverage report (HTML in `coverage/`)                                                                                |
+| `npm run typecheck`     | Typecheck every workspace                                                                                                             |
+| `npm run lint`          | ESLint across the repository                                                                                                          |
+| `npm run format`        | Format with Prettier (`format:check` to verify only)                                                                                  |
+| `npm run audit`         | Layout at phone / tablet / desktop and axe WCAG 2.1 AA in all 7 themes (run `npm run build` first; `AUDIT_URL=…` for a deployed site) |
+| `npm run smoke`         | Click through the production build in Chrome (run `npm run build` first; `SMOKE_URL=…` to test a deployed site)                       |
 
 ---
 
@@ -821,3 +822,58 @@ The top bar's **▶ TOUR** button starts it. Exiting (✕, Escape, or after the 
 | `npm run test:coverage`        | 97.3% statements, 87.8% branches, 97.6% functions, 98.1% lines                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Smoke test                     | Pass: 48 steps                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Typecheck, lint, format, build | Pass                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+
+### Step 12 — Quality pass + deploy (17 Sep 2026)
+
+**Removed:** the temporary `/dev/charts` page (it now shows the not-found page).
+
+**Layout — `e2e/audit.mjs`, every page at 390 px (phone), 768 px (tablet) and 1440 px (desktop)**
+
+- Checks that nothing sticks out past the window and nothing is cut off by a clipping parent; wide tables scroll inside their own container, which is allowed. Screenshots go to `e2e/audit-output/`.
+- Phone and tablet: no content lost (all wide tables scroll correctly).
+- Found and fixed three charts whose text the wireframe itself clipped at every width: the pillar gauge's "PROV" label (now allowed to draw into the panel padding), the fit-by-persona legend's "Critically mismatched" (legend moved below the chart as HTML, which also wraps on phones), and long persona names in the migration flow such as "Knowledge Worker" (fitted to the node). Chart geometry is unchanged; the parity test excludes only the moved legend.
+
+**Accessibility — axe-core WCAG 2.1 A/AA on 7 pages × 7 themes**
+
+| Finding                                                                                                                                                           | Fix                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Colour contrast: 3,530 elements. The wireframe's `faint` colour was 2.7–3.4:1 in every theme; Daylight and Parchment status colours and Nord's red were 3.0–4.2:1 | **Decision (17 Sep 2026): adjust colours.** Only failing colours were nudged toward each theme's text colour until 4.5:1 on every surface: faint in all 7 themes, bad in Nord, good / warn / bad / cyan in Daylight, good / warn in Parchment. Heat-table numbers on their tinted cells use `readableOn`. A unit test now checks every text colour in every theme against every surface |
+| Scrollable "People moving" list not keyboard reachable                                                                                                            | Focusable region with a label                                                                                                                                                                                                                                                                                                                                                           |
+| App catalogue list contained a non-list item                                                                                                                      | "Add app" wrapped as a list item                                                                                                                                                                                                                                                                                                                                                        |
+| (not flagged, added)                                                                                                                                              | Visible focus outline on links, focusable rows and donut slices; tour scroll respects reduced motion                                                                                                                                                                                                                                                                                    |
+
+Result: **axe clean on all 7 pages in all 7 themes.**
+
+| Colour | Wireframe → now                                                                                                                                                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| faint  | Midnight #5A6383 → #7C849F · Carbon #63636B → #838389 · Nord #68758A → #848FA0 · Ember #786A5E → #908378 · Deep Teal #5C7C80 → #769296 · Daylight #8A93AC → #656D84 · Parchment #988975 → #746857 |
+| status | Nord bad #BF616A → #C5777F · Daylight good #0F9D6B → #117B5B, warn #B87500 → #96620A, bad #D63652 → #C9344F, cyan #0E86A8 → #0F7696 · Parchment good #2F7D4F → #2E774B, warn #A8700B → #8F600D    |
+
+**Bundle:** importing only `d3-array`, `d3-scale`, `d3-shape` and `d3-ease` (instead of the whole `d3` package, which pulled in unused transition, selection and brush modules) cut the main bundle from 164.0 to **155.6 kB gzipped**. The rest is React, React DOM, React Router and TanStack Query, shared by every page. Route-level code splitting was tried and reverted: it saved about 9 kB on first load but added a loading state to every navigation. The mock API (164 kB gzipped) loads only while `VITE_USE_MOCKS=true`.
+
+**Security and caching — `staticwebapp.config.json`**
+
+| Header                                   | Value                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Content-Security-Policy                  | `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests` (inline styles are needed for React style props) |
+| Strict-Transport-Security                | `max-age=31536000; includeSubDomains`                                                                                                                                                                                                                                                                                                    |
+| X-Frame-Options / COOP                   | `DENY` / `same-origin`                                                                                                                                                                                                                                                                                                                   |
+| Permissions-Policy                       | camera, microphone, geolocation, payment, usb disabled                                                                                                                                                                                                                                                                                   |
+| X-Content-Type-Options / Referrer-Policy | `nosniff` / `strict-origin-when-cross-origin`                                                                                                                                                                                                                                                                                            |
+| Cache-Control                            | hashed `/assets/*`: 1 year immutable · `mockServiceWorker.js` and `index.html`: no-cache                                                                                                                                                                                                                                                 |
+
+Verified on the live site: headers present, and the smoke test passes with the policy active (any blocked resource would be a console error).
+
+**CI pipeline (GitHub Actions):** install → lint → test → build → production smoke test → **layout and accessibility audit** → deploy.
+
+**Also:** `README.md` for the repository.
+
+**Test results**
+
+| Check                          | Result                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------- |
+| `npm test`                     | Pass: 26 test files, 518 tests, no React warnings                                     |
+| `npm run test:coverage`        | 97.6% statements, 88.8% branches, 98.2% functions, 98.3% lines                        |
+| Smoke test                     | Pass: 45 steps, locally and on the live site with the security headers active         |
+| Audit                          | Pass: 7 pages × 3 widths nothing cut off; axe WCAG 2.1 AA clean on 7 pages × 7 themes |
+| Typecheck, lint, format, build | Pass                                                                                  |

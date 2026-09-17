@@ -91,9 +91,12 @@ function shapes(root: Element) {
   });
 }
 
+/* Step 12 raised Midnight's faint colour to meet WCAG AA contrast; geometry is unchanged. */
+const WIREFRAME_MIDNIGHT_FAINT = "#5A6383";
+
 function wireframeShapes(markup: string) {
   const host = document.createElement("div");
-  host.innerHTML = markup;
+  host.innerHTML = markup.replaceAll(WIREFRAME_MIDNIGHT_FAINT, C.faint);
   return shapes(host);
 }
 

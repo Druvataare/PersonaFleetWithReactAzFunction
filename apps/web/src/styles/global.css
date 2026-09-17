@@ -3,7 +3,7 @@
 :root{
   --bg:#0B0F1C; --bg-deep:#070A14; --panel:#121729; --panel2:#161C31;
   --line:#232B45; --line-soft:#1B2138; --hover:rgba(255,255,255,.045); --plate:rgba(255,255,255,.02);
-  --text:#E9ECF6; --dim:#8B94B2; --faint:#5A6383;
+  --text:#E9ECF6; --dim:#8B94B2; --faint:#7C849F;
   --accent:#7C8CFF; --good:#35D6A5; --warn:#F5B546; --bad:#FF6B7A; --fresh:#B47CFF; --cyan:#4CC9E8;
   --mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace;
   --sans:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;
