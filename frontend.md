@@ -18,7 +18,7 @@ Building the React front end from the `personalfleet.html` wireframe, using the 
 | --- | -------------------------- | ----------- | ------------- |
 | 1   | Project scaffold           | Done        | 17 Sep 2026   |
 | 2   | Scoring package            | Done        | 17 Sep 2026   |
-| 3   | Sample data + mock API     | Testing     |               |
+| 3   | Sample data + mock API     | Done        | 17 Sep 2026   |
 | 4   | App shell                  | Not started |               |
 | 5   | Chart library              | Not started |               |
 | 6   | Personas page              | Not started |               |
@@ -498,3 +498,4 @@ Baseline-dependent numbers (health, fit, ticket status) are not computed by the 
 
 - `personaTrend` (the 12-week health line) is derived from live health in the browser, so it is built with the Persona page in step 7.
 - The mock database resets on page reload, like the wireframe without the Excel link.
+- **Verified in the browser on the live site (17 Sep 2026):** all 11 read endpoints return OK through the service worker, with the reference numbers above.
