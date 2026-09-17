@@ -120,7 +120,19 @@ async function run() {
   await step("back to persona", click("button", "Back"), "Engineering");
   await step("back to Personas", click("button", "Back"), "Personas");
   await step("nav Baselines", click("link", "Baselines"), "Baselines & device fit");
-  await step("pick Data Science baseline", click("link", "Data Science"));
+  await step("pick Data Science baseline", click("button", "Data Science"));
+  await step("move baseline sliders", async () => {
+    await page.locator("#slider-ramGB").fill("128");
+    await page.locator("#slider-ticketsPer100").fill("30");
+    await page.getByText("UNSAVED CHANGES").waitFor();
+  });
+  await step("reset baseline", async () => {
+    await page.getByRole("button", { name: "Reset Data Science" }).click();
+    if (await page.getByText("UNSAVED CHANGES").count()) throw new Error("reset did not clear the edit");
+  });
+  await step("pick persona from heat table", () =>
+    page.getByRole("table", { name: "Component match" }).getByText("Contact Centre").click(),
+  );
   await step("nav Tickets", click("link", "Tickets"), "Tickets");
   await step("service requests", click("button", "Service requests"));
   await step("nav Change", click("link", "Change"), "Change");

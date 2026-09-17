@@ -38,7 +38,8 @@ describe("routing", () => {
   it("opens a persona's baseline from a deep link", async () => {
     renderApp("/baselines/DS");
     expect(await screen.findByText("Baseline contract · Data Science")).toBeInTheDocument();
-    expect(screen.getByText(/64GB RAM · 2TB storage/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Minimum memory")).toHaveValue("64");
+    expect(screen.getByLabelText("Minimum storage")).toHaveValue("2048");
   });
 
   it.each([
