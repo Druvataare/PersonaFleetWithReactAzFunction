@@ -1,16 +1,20 @@
-import { healthLabel, healthTone } from "@pfc/scoring";
-import { Link } from "react-router";
-import { Avatar } from "../components/Avatar.tsx";
-import { Chip, ComingSoon, ErrorMessage, Kpi, Loading, PageHead } from "../components/ui.tsx";
-import { toneColor } from "../lib/format.ts";
+/* 01 · WHO — the landing page: persona health, then how people were mapped into personas. */
+import { usePersonas } from "../api/queries.ts";
+import { Chip, ErrorMessage, Kpi, Loading, PageHead } from "../components/ui.tsx";
 import { useFleetModel } from "../model/useFleetModel.ts";
+import { Replay } from "../motion/clock.tsx";
 import { useUi } from "../store/ui.ts";
+import { MappingConfidence } from "./personas/MappingConfidence.tsx";
+import { PersonaGrid } from "./personas/PersonaGrid.tsx";
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 
 export default function PersonasPage() {
   const { model, isLoading, error } = useFleetModel();
+  const personas = usePersonas();
   const filter = useUi((s) => s.personaFilter);
+  const mappingPersona = useUi((s) => s.mappingPersona);
+  const mappingBand = useUi((s) => s.mappingBand);
   const set = useUi((s) => s.set);
 
   const chips = (
@@ -24,10 +28,9 @@ export default function PersonasPage() {
     </>
   );
 
-  const shown = model?.filter((p) => (filter === "risk" ? p.health < 85 : true)) ?? [];
-
   return (
-    <>
+    /* Like the wireframe, charts replay whenever a filter changes. Typing in search does not. */
+    <Replay on={[filter, mappingPersona, mappingBand]}>
       <PageHead
         step="01 · WHO"
         title="Personas"
@@ -36,7 +39,7 @@ export default function PersonasPage() {
       />
       {error ? (
         <ErrorMessage error={error} />
-      ) : isLoading || !model ? (
+      ) : isLoading || !model || !personas.data ? (
         <Loading />
       ) : (
         <>
@@ -46,37 +49,10 @@ export default function PersonasPage() {
             <Kpi value={sum(model.map((p) => p.underCount))} label="Under baseline" tone="bad" />
             <Kpi value={sum(model.map((p) => p.openTickets))} label="Open tickets" tone="warn" />
           </div>
-
-          <div className="personas" aria-label="Persona cards">
-            {shown.map((p) => (
-              <Link
-                key={p.id}
-                to={`/personas/${p.id}`}
-                className="ring-card"
-                style={{ textDecoration: "none", textAlign: "center" }}
-              >
-                <Avatar pid={p.id} size={40} color={p.hue} />
-                <div className="ring-name" style={{ marginTop: 8 }}>
-                  {p.name}
-                </div>
-                <div className="ring-sub">{p.sub}</div>
-                <div className="ring-meta">
-                  Health{" "}
-                  <span className="m" style={{ color: toneColor(healthTone(p.health)) }}>
-                    {Math.round(p.health)}
-                  </span>{" "}
-                  · {healthLabel(p.health)}
-                </div>
-              </Link>
-            ))}
-          </div>
-
-          <ComingSoon step={6}>
-            Persona health rings, the legend and the full mapping-confidence section (bands, donuts and review
-            queue).
-          </ComingSoon>
+          <PersonaGrid personas={model.filter((p) => (filter === "risk" ? p.health < 85 : true))} />
+          <MappingConfidence personas={personas.data} />
         </>
       )}
-    </>
+    </Replay>
   );
 }

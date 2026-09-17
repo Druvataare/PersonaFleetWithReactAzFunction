@@ -144,6 +144,13 @@ describe("Donut", () => {
   it("has no buttons without onSelect", () => {
     render(<Donut rows={rows} centerLabel="DEVICES" />);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "devices" })).toBeInTheDocument();
+  });
+
+  it("is a group, not an image, when slices are buttons (an img hides its children from assistive tech)", () => {
+    render(<Donut rows={rows} centerLabel="TICKETS" onSelect={() => {}} />);
+    expect(screen.queryByRole("img", { name: "tickets" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "tickets" })).getAllByRole("button")).toHaveLength(2);
   });
 });
 

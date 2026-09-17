@@ -20,8 +20,8 @@ Building the React front end from the `personalfleet.html` wireframe, using the 
 | 2   | Scoring package            | Done        | 17 Sep 2026   |
 | 3   | Sample data + mock API     | Done        | 17 Sep 2026   |
 | 4   | App shell                  | Done        | 17 Sep 2026   |
-| 5   | Chart library              | Testing     |               |
-| 6   | Personas page              | Not started |               |
+| 5   | Chart library              | Done        | 17 Sep 2026   |
+| 6   | Personas page              | Testing     |               |
 | 7   | Persona page + Device page | Not started |               |
 | 8   | Baselines page             | Not started |               |
 | 9   | Tickets page               | Not started |               |
@@ -614,3 +614,42 @@ Baseline-dependent numbers (health, fit, ticket status) are not computed by the 
 - Cause: inherited from the wireframe. `#app` has classes `wrap` (24px side padding) and `body`; `.body{padding:6px 0 60px}` comes later in the stylesheet and zeroes the side padding. Wider than ~1550px the centred 1500px column hid it; narrower, panels and tables sat at 0px.
 - Fix: `.wrap.body{padding:6px 24px 60px}` (16px below 560px wide), added after the verbatim wireframe CSS.
 - Guard: smoke test step "page content keeps a side margin" at 1280px. Verified it fails without the fix (`KPI tile starts 0px from the window edge`) and passes with it (25 steps).
+
+### Step 6 — Personas page (17 Sep 2026)
+
+**Built**
+
+| Path (under `apps/web/src`)            | Contents                                                                                                                                                                                     |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pages/PersonasPage.tsx`               | Page heading with All / Needs attention chips, 4 KPIs, persona grid, mapping section; replays animations when a filter changes                                                               |
+| `pages/personas/PersonaGrid.tsx`       | Radial health ring per persona (health arc, below-baseline arc, avatar, score) with headcount, % below baseline and open tickets; ring legend; empty-state message                           |
+| `pages/personas/MappingConfidence.tsx` | Persona selector, clear-band chip, 3 KPIs (avg confidence, distinct titles, titles mapped), 3 band tiles that filter, job-title and department donuts with legends, review queue with search |
+| `components/LegendList.tsx`            | Donut legend rows (dot, label, count, share) as filter buttons; reused on the Tickets page                                                                                                   |
+
+**Behaviour (as the wireframe)**
+
+- Needs attention keeps personas with health below 85.
+- Band tiles toggle a filter on the review queue and change its heading; "Clear band filter ✕" appears while one is active.
+- The persona selector, a donut slice, a legend row or a review-queue row all set the persona scope; selecting the active persona again clears it. Other personas dim.
+- Review queue: everything under 100% by default, or the chosen band; lowest confidence first; first 150 rows; search matches job title and department.
+
+**Changes from the wireframe**
+
+- The review-queue header shows the full match count ("first 150 rows of 204").
+- Review-queue rows are focusable and respond to Enter.
+- Search typing is deferred so the table does not re-query on every keystroke while typing fast; animations do not replay while typing (the wireframe also only redrew the table).
+
+**Accessibility fix found by the smoke test:** interactive donuts were SVGs with `role="img"`. Browsers treat an image's children as decoration, so the slice buttons were invisible to screen readers and keyboard tools (jsdom does not apply that rule, so unit tests passed). Charts now use `role="group"` when they contain buttons; Chrome's accessibility tree lists all 14 slices as buttons.
+
+**Test results**
+
+| Check                          | Result                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Page tests (wireframe data)    | KPIs and every ring card (health, headcount, % below baseline, open tickets) match the wireframe's `buildModel`; confidence KPIs and band counts (all and per persona) match the wireframe's `TITLE_ROWS`; legend counts and 2-decimal shares; review order and 150-row cap; band filter, clear chip, 100% band; search and empty state; slice, legend and row filtering; Needs attention |
+| Visual comparison              | Full-page screenshots of the wireframe and React page at 1440px: same height (7,723px) and matching KPIs, rings, bands, donuts, legends and review rows                                                                                                                                                                                                                                   |
+| `npm test`                     | Pass: 19 test files, 255 tests, no React warnings                                                                                                                                                                                                                                                                                                                                         |
+| `npm run test:coverage`        | 96.4% statements, 88.6% branches, 95.4% functions, 97.1% lines                                                                                                                                                                                                                                                                                                                            |
+| Smoke test                     | Pass: 31 steps (adds band filter, clear chip, persona selector, keyboard slice selection, search)                                                                                                                                                                                                                                                                                         |
+| Typecheck, lint, format, build | Pass                                                                                                                                                                                                                                                                                                                                                                                      |
+
+**Reference numbers:** 7 personas · 12,095 devices · 3,843 under baseline · 13,248 open tickets · ring scores DEV 73, KW 69, CC 64, FIELD 72, EXEC 74, DS 75, CRE 75 · avg confidence 99.20% · 2,671 distinct titles · bands 11,891 / 103 / 101 · 204 titles to review.

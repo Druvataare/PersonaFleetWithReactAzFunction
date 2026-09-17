@@ -12,11 +12,13 @@ interface SvgFluidProps {
   h: number;
   maxW?: number;
   label?: string;
+  /** "img" for static charts; "group" when the chart contains buttons (img hides its children from assistive tech). */
+  role?: "img" | "group";
   children: ReactNode;
 }
 
 /** Fixed internal coordinates, scaled to the container width. */
-export function SvgFluid({ w, h, maxW, label, children }: SvgFluidProps) {
+export function SvgFluid({ w, h, maxW, label, role = "img", children }: SvgFluidProps) {
   const style: CSSProperties = {
     width: "100%",
     height: "auto",
@@ -29,7 +31,7 @@ export function SvgFluid({ w, h, maxW, label, children }: SvgFluidProps) {
         viewBox={`0 0 ${w} ${h}`}
         preserveAspectRatio="xMidYMid meet"
         style={style}
-        role={label ? "img" : undefined}
+        role={label ? role : undefined}
         aria-label={label}
       >
         {children}

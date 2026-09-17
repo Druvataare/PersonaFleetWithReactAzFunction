@@ -48,7 +48,13 @@ export function Donut({
     .padAngle(padAngle)(rows);
   const total = sum(rows, (d) => d.n);
   return (
-    <SvgFluid w={size} h={size} maxW={size} label={label ?? centerLabel.toLowerCase()}>
+    <SvgFluid
+      w={size}
+      h={size}
+      maxW={size}
+      label={label ?? centerLabel.toLowerCase()}
+      role={onSelect ? "group" : "img"}
+    >
       <g transform={`translate(${size / 2},${size / 2})`}>
         {slices.map((a, i) => {
           const interactive = onSelect

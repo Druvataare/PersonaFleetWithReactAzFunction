@@ -172,7 +172,7 @@ describe("pages use live mock data", () => {
     expect(screen.getByRole("button", { name: "Needs attention" })).toHaveAttribute("aria-pressed", "true");
     const shown = within(grid).getAllByRole("link");
     shown.forEach((card) => {
-      const health = Number(card.querySelector(".ring-meta .m")?.textContent);
+      const health = Number([...card.querySelectorAll("text")].at(-1)?.textContent);
       expect(health).toBeLessThan(85);
     });
     expect(within(grid).queryByRole("link", { name: /Executive/ })).not.toBeInTheDocument();
@@ -227,11 +227,12 @@ describe("chart library page", () => {
       "Where people moved",
       "Fit distribution by persona",
       "devices",
-      "titles",
     ]) {
       expect(screen.getAllByRole("img", { name }).length, name).toBeGreaterThan(0);
     }
-    expect(screen.getAllByRole("img", { name: "tickets" })).toHaveLength(2);
+    // Interactive donuts are groups so their slice buttons stay reachable by assistive tech.
+    expect(screen.getAllByRole("group", { name: "tickets" })).toHaveLength(2);
+    expect(screen.getByRole("group", { name: "titles" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "DS" }));
     expect(screen.getByText("Five pillars · Data Science")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Connectivity: 374" }));

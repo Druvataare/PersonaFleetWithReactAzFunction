@@ -92,6 +92,18 @@ async function run() {
     await page.getByRole("button", { name: "MOTION" }).click();
   });
   await step("toggle CHART NAMES", click("button", "CHART NAMES"));
+  await step("confidence band filter", click("button", /Confidence <50%/));
+  await step("clear band filter", click("button", "Clear band filter ✕"));
+  await step("mapping persona selector", () => page.selectOption("#cpsel", "CC"));
+  await step("mapping donut slice by keyboard", async () => {
+    await page.getByRole("button", { name: /^CC: / }).first().focus();
+    await page.keyboard.press("Enter");
+    const value = await page.locator("#cpsel").inputValue();
+    if (value !== "all")
+      throw new Error(`Enter on the selected slice should clear the persona filter, got ${value}`);
+  });
+  await step("review queue search", () => page.fill("#csearch", "legal"));
+  await step("clear search", () => page.fill("#csearch", ""));
   await step("Needs attention filter", click("button", "Needs attention"));
   await step("All personas filter", click("button", "All personas"));
   await step("open Engineering", click("link", /Engineering/), "Engineering");
