@@ -6,6 +6,8 @@ Building the React front end from the `personalfleet.html` wireframe, using the 
 
 **Repository:** [Druvataare/PersonaFleetWithReactAzFunction](https://github.com/Druvataare/PersonaFleetWithReactAzFunction) (branch `main`, one commit per step)
 
+**Live site:** https://agreeable-coast-025d2f100.2.azurestaticapps.net (every push to `main` deploys; pull requests get a preview URL)
+
 **Related documents:** [Persona-Fleet-Command-Architecture.html](Persona-Fleet-Command-Architecture.html) · [Persona-Fleet-Command-Architecture.docx](Persona-Fleet-Command-Architecture.docx)
 
 ---
@@ -14,7 +16,7 @@ Building the React front end from the `personalfleet.html` wireframe, using the 
 
 | #   | Step                       | Status      | Date approved |
 | --- | -------------------------- | ----------- | ------------- |
-| 1   | Project scaffold           | Testing     |               |
+| 1   | Project scaffold           | Done        | 17 Sep 2026   |
 | 2   | Scoring package            | Not started |               |
 | 3   | Sample data + mock API     | Not started |               |
 | 4   | App shell                  | Not started |               |
@@ -363,3 +365,29 @@ Status values: `Not started` · `In progress` · `Testing` · `Done`
 | `npm run build`                      | Pass: 219.9 kB JS (68.7 kB gzipped)   |
 | Dev server `/`                       | HTTP 200, placeholder page renders    |
 | Dev server deep link `/personas/DEV` | HTTP 200 (served by the SPA fallback) |
+
+**Azure Static Web Apps + continuous deployment**
+
+| Item            | Value                                                                                     |
+| --------------- | ----------------------------------------------------------------------------------------- |
+| Resource        | `swa-persona-fleet` (Static Web App, **Free** plan)                                       |
+| Resource group  | `Shashi-RG` · subscription DFS CoE-DWP                                                    |
+| URL             | https://agreeable-coast-025d2f100.2.azurestaticapps.net                                   |
+| Deployment auth | GitHub (OIDC) + secret `AZURE_STATIC_WEB_APPS_API_TOKEN_AGREEABLE_COAST_025D2F100`        |
+| Workflow        | `.github/workflows/azure-static-web-apps-agreeable-coast-025d2f100.yml`                   |
+| Pipeline        | `npm ci` → lint → test → build → upload `apps/web/dist` (`skip_app_build: true`)          |
+| Actions         | `checkout@v7`, `setup-node@v7`, `github-script@v9` (Node 24), `static-web-apps-deploy@v1` |
+| Triggers        | Push to `main` → production · PR into `main` → preview environment (removed on close)     |
+
+| Deployment check                        | Result                                                 |
+| --------------------------------------- | ------------------------------------------------------ |
+| GitHub Actions run (all steps)          | Pass: Install, Lint, Test, Build, Get Id Token, Deploy |
+| Live `/`                                | HTTP 200, placeholder page                             |
+| Live deep link `/personas/DEV`          | HTTP 200                                               |
+| Headers from `staticwebapp.config.json` | `X-Content-Type-Options`, `Referrer-Policy` present    |
+
+**Notes**
+
+- First create attempt failed: _Enterprise-grade edge_ is not allowed on the Free plan. Leave it unchecked.
+- Upgrade to **Standard** (Settings → Hosting plan) before the backend phase, for the linked Azure Functions backend and custom Entra sign-in.
+- The warning `Unexpected input(s) 'github_id_token'` also appears with Azure's generated workflow and does not affect deployment.
