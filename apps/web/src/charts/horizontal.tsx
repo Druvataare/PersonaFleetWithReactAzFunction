@@ -1,8 +1,10 @@
 /* Horizontal bar charts: patch compliance by site and fit distribution by persona. */
 import { FIT_KINDS, type Device, type PersonaFit } from "@pfc/scoring";
-import { max, scaleBand, scaleLinear } from "d3";
+import { max } from "d3-array";
+import { scaleBand, scaleLinear } from "d3-scale";
 import { usePalette } from "../theme/usePalette.ts";
 import { AnimRect, SvgFluid, Txt } from "./core.tsx";
+import { MONO } from "./geometry.ts";
 
 /** Top six sites by device count; fill is the share patched. */
 export function ComplianceBySite({
@@ -78,54 +80,69 @@ export function FitStack({ rows, w = 560, h = 250 }: { rows: PersonaFit[]; w?: n
     .domain([0, max(data, (d) => d.total) || 1])
     .range([m.l, w - m.r]);
   return (
-    <SvgFluid w={w} h={h} label="Fit distribution by persona">
-      {x.ticks(5).map((t) => (
-        <g key={`g${t}`}>
-          <line x1={x(t)} x2={x(t)} y1={m.t} y2={h - m.b} stroke={C.lineSoft} strokeDasharray="2 3" />
-          <Txt x={x(t)} y={h - m.b + 14} size={9} fill={C.faint} anchor="middle">
-            {(t / 1000).toFixed(0) + "K"}
-          </Txt>
-        </g>
-      ))}
-      {data.map((d, i) => {
-        let acc = 0;
-        return (
-          <g key={d.id}>
-            <Txt x={m.l - 8} y={y(d.id)! + y.bandwidth() / 2 + 3} size={10} fill={C.dim} anchor="end">
-              {d.name.length > 15 ? d.name.slice(0, 15) + "…" : d.name}
+    <>
+      <SvgFluid w={w} h={h} label="Fit distribution by persona">
+        {x.ticks(5).map((t) => (
+          <g key={`g${t}`}>
+            <line x1={x(t)} x2={x(t)} y1={m.t} y2={h - m.b} stroke={C.lineSoft} strokeDasharray="2 3" />
+            <Txt x={x(t)} y={h - m.b + 14} size={9} fill={C.faint} anchor="middle">
+              {(t / 1000).toFixed(0) + "K"}
             </Txt>
-            {FIT_KINDS.map(({ key, tone }, j) => {
-              const v = d[key];
-              if (!v) return null;
-              const x0 = x(acc);
-              const wd = x(acc + v) - x(acc);
-              acc += v;
-              return (
-                <AnimRect
-                  key={key}
-                  x={x0}
-                  y={y(d.id)!}
-                  w={Math.max(1, wd)}
-                  h={y.bandwidth()}
-                  rx={2}
-                  fill={color[tone]}
-                  opacity={0.88}
-                  delay={i * 60 + j * 30}
-                  dir="right"
-                />
-              );
-            })}
           </g>
-        );
-      })}
-      {FIT_KINDS.map(({ key, label, tone }, i) => (
-        <g key={key}>
-          <rect x={m.l + i * 136} y={h - 12} width={8} height={8} rx={2} fill={color[tone]} />
-          <Txt x={m.l + i * 136 + 12} y={h - 5} size={9} fill={C.faint}>
+        ))}
+        {data.map((d, i) => {
+          let acc = 0;
+          return (
+            <g key={d.id}>
+              <Txt x={m.l - 8} y={y(d.id)! + y.bandwidth() / 2 + 3} size={10} fill={C.dim} anchor="end">
+                {d.name.length > 15 ? d.name.slice(0, 15) + "…" : d.name}
+              </Txt>
+              {FIT_KINDS.map(({ key, tone }, j) => {
+                const v = d[key];
+                if (!v) return null;
+                const x0 = x(acc);
+                const wd = x(acc + v) - x(acc);
+                acc += v;
+                return (
+                  <AnimRect
+                    key={key}
+                    x={x0}
+                    y={y(d.id)!}
+                    w={Math.max(1, wd)}
+                    h={y.bandwidth()}
+                    rx={2}
+                    fill={color[tone]}
+                    opacity={0.88}
+                    delay={i * 60 + j * 30}
+                    dir="right"
+                  />
+                );
+              })}
+            </g>
+          );
+        })}
+      </SvgFluid>
+      {/* Legend as HTML (the wireframe drew it inside the SVG, where the last label was cut off). */}
+      <div
+        role="list"
+        aria-label="Fit categories"
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "4px 16px",
+          marginTop: 6,
+          fontFamily: MONO,
+          fontSize: 10.5,
+          color: "var(--faint)",
+        }}
+      >
+        {FIT_KINDS.map(({ key, label, tone }) => (
+          <span key={key} role="listitem" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <i className="dot" style={{ background: color[tone], width: 8, height: 8, borderRadius: 2 }} />
             {label}
-          </Txt>
-        </g>
-      ))}
-    </SvgFluid>
+          </span>
+        ))}
+      </div>
+    </>
   );
 }

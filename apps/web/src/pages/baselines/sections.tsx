@@ -420,26 +420,28 @@ export function AppCatalogue({ name, apps }: { name: string; apps: string[] }) {
             {a}
           </span>
         ))}
-        <button
-          type="button"
-          disabled
-          title="Editing the catalogue arrives with the backend"
-          style={{
-            fontSize: 11.5,
-            color: "var(--accent)",
-            padding: "5px 9px",
-            background: "none",
-            border: "1px dashed var(--accent)",
-            borderRadius: 6,
-            cursor: "not-allowed",
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            opacity: 0.7,
-          }}
-        >
-          <Icon name="plus" size={11} /> Add app
-        </button>
+        <span role="listitem">
+          <button
+            type="button"
+            disabled
+            title="Editing the catalogue arrives with the backend"
+            style={{
+              fontSize: 11.5,
+              color: "var(--accent)",
+              padding: "5px 9px",
+              background: "none",
+              border: "1px dashed var(--accent)",
+              borderRadius: 6,
+              cursor: "not-allowed",
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              opacity: 0.7,
+            }}
+          >
+            <Icon name="plus" size={11} /> Add app
+          </button>
+        </span>
       </div>
     </Panel>
   );

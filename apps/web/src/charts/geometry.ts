@@ -1,4 +1,4 @@
-import { arc, type DefaultArcObject } from "d3";
+import { arc, type DefaultArcObject } from "d3-shape";
 
 export const MONO = 'ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace';
 

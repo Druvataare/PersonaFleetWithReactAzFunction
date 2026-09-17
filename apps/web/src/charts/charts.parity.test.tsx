@@ -381,9 +381,20 @@ describe("charts match the wireframe shape for shape", () => {
         />,
       ),
     ).toEqual(wireframeShapes(wf.charts.fitDonut(tot, 180)));
-    expect(reactShapes(<FitStack rows={fit} />)).toEqual(
-      wireframeShapes(wf.charts.fitStack(wf.fitByPersona(wfModel()))),
-    );
+    /* The legend moved out of the SVG into HTML (its last label was clipped), so compare
+       every bar, grid line and label except the wireframe's four in-SVG legend swatches and labels. */
+    const wfStack = wireframeShapes(wf.charts.fitStack(wf.fitByPersona(wfModel())));
+    expect(wfStack.slice(-8).map((x) => x.tag)).toEqual([
+      "rect",
+      "text",
+      "rect",
+      "text",
+      "rect",
+      "text",
+      "rect",
+      "text",
+    ]);
+    expect(reactShapes(<FitStack rows={fit} />)).toEqual(wfStack.slice(0, -8));
   });
 });
 

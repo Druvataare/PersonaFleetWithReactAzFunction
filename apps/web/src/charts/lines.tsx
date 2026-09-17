@@ -1,5 +1,7 @@
 /* Line-based charts: health trend, boot vs free-disk scatter, migration flow. */
-import { area, curveMonotoneX, line, max, min, scaleLinear, scaleSqrt } from "d3";
+import { max, min } from "d3-array";
+import { scaleLinear, scaleSqrt } from "d3-scale";
+import { area, curveMonotoneX, line } from "d3-shape";
 import { useId } from "react";
 import type { Baseline, Device, Migration, PersonaDef } from "@pfc/scoring";
 import { Avatar } from "../components/Avatar.tsx";
@@ -190,7 +192,15 @@ export function MigrationFlow({ migrations: rows, personas, w = 600, h = 290 }: 
           <g transform="translate(7,6)">
             <Avatar pid={id} size={28} color={p.hue} />
           </g>
-          <text x={41} y={18} fontSize={10.5} fill={C.text} style={{ fontFamily: "var(--sans)" }}>
+          {/* Long names are fitted to the node (the wireframe let them spill past the box and get cut off). */}
+          <text
+            x={41}
+            y={18}
+            fontSize={10.5}
+            fill={C.text}
+            style={{ fontFamily: "var(--sans)" }}
+            {...(p.name.length > 12 ? { textLength: 74, lengthAdjust: "spacingAndGlyphs" } : {})}
+          >
             {p.name}
           </text>
           <Txt x={41} y={31} size={9.5} fill={side === "r" ? C.good : C.faint}>

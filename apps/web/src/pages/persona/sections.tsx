@@ -489,7 +489,12 @@ export function MovementExceptions({ p, personas, migrations, apps }: MovementPr
               −{p.movedOut}
             </span>
           </div>
-          <div style={{ maxHeight: 290, overflowY: "auto" }}>
+          <div
+            style={{ maxHeight: 290, overflowY: "auto" }}
+            tabIndex={0}
+            role="region"
+            aria-label="People moving in and out"
+          >
             {inbound.length || outbound.length ? (
               <>
                 {inbound.map((m) => (

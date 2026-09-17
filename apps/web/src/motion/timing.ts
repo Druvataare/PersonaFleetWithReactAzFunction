@@ -1,4 +1,4 @@
-import { easeBackOut, easeCubicInOut, easeCubicOut } from "d3";
+import { easeBackOut, easeCubicInOut, easeCubicOut } from "d3-ease";
 
 /** Longest animation (staggered dots) finishes well inside this window. */
 export const MOTION_WINDOW_MS = 2600;

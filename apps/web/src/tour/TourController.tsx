@@ -16,7 +16,8 @@ function scrollToSection(index: number, delay: number): () => void {
     const el = document.querySelectorAll("#app .sect")[index];
     if (el) {
       const top = Math.max(0, el.getBoundingClientRect().top + window.scrollY - SCROLL_OFFSET);
-      window.scrollTo({ top, behavior: "smooth" });
+      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({ top, behavior: reduce ? "auto" : "smooth" });
     } else if (tries < 40) {
       /* Data may still be loading: keep looking for up to 4 seconds. */
       timer = window.setTimeout(() => attempt(tries + 1), 100);

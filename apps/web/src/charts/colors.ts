@@ -1,4 +1,4 @@
-import { scaleOrdinal } from "d3";
+import { scaleOrdinal } from "d3-scale";
 import { CATALOG, TICKET_CATS } from "../lib/categories.ts";
 import type { Palette } from "../theme/themes.ts";
 

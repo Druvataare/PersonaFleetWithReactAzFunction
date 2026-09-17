@@ -191,8 +191,12 @@ describe("app catalogue and the rest of the app", () => {
   it("lists the persona's catalogue", async () => {
     await openBaselines("DS");
     const list = within(screen.getByRole("list", { name: "Data Science app catalogue" }));
-    expect(list.getAllByRole("listitem").map((li) => li.textContent)).toEqual(wf.APPS.DS);
-    expect(screen.getByRole("button", { name: /Add app/ })).toBeDisabled();
+    /* Every catalogue app, then the (disabled) Add app control as the last item. */
+    expect(list.getAllByRole("listitem").map((li) => li.textContent?.trim())).toEqual([
+      ...wf.APPS.DS,
+      "Add app",
+    ]);
+    expect(list.getByRole("button", { name: /Add app/ })).toBeDisabled();
   });
 
   it("an edited baseline changes the persona page and the Personas grid", async () => {

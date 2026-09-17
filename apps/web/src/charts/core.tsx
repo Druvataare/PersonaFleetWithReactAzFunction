@@ -14,16 +14,27 @@ interface SvgFluidProps {
   label?: string;
   /** "img" for static charts; "group" when the chart contains buttons (img hides its children from assistive tech). */
   role?: "img" | "group";
+  /** Let labels near the edge draw outside the chart box instead of being clipped. */
+  overflowVisible?: boolean;
   children: ReactNode;
 }
 
 /** Fixed internal coordinates, scaled to the container width. */
-export function SvgFluid({ w, h, maxW, label, role = "img", children }: SvgFluidProps) {
+export function SvgFluid({
+  w,
+  h,
+  maxW,
+  label,
+  role = "img",
+  overflowVisible = false,
+  children,
+}: SvgFluidProps) {
   const style: CSSProperties = {
     width: "100%",
     height: "auto",
     display: "block",
     ...(maxW ? { maxWidth: maxW, margin: "0 auto" } : {}),
+    ...(overflowVisible ? { overflow: "visible" } : {}),
   };
   return (
     <MotionFrame>

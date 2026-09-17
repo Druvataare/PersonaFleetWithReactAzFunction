@@ -1,5 +1,6 @@
 /* Donut with a total in the middle. Slices can act as filters. */
-import { pie, sum } from "d3";
+import { sum } from "d3-array";
+import { pie } from "d3-shape";
 import type { KeyboardEvent } from "react";
 import { usePalette } from "../theme/usePalette.ts";
 import { AnimArc, AnimText, SvgFluid, Txt } from "./core.tsx";

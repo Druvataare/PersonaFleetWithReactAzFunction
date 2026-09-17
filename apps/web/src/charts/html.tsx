@@ -1,5 +1,5 @@
 /* HTML-based charts: bullet chart (actual vs target) and ranked bar list. */
-import { scaleLinear } from "d3";
+import { scaleLinear } from "d3-scale";
 import { Icon, type IconName } from "../components/Icon.tsx";
 import type { KeyCount } from "../api/types.ts";
 import { MotionFrame } from "../motion/clock.tsx";

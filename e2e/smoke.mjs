@@ -197,13 +197,10 @@ async function run() {
     await page.getByRole("region", { name: "Guided tour" }).waitFor({ state: "detached" });
   });
   await step(
-    "chart library",
+    "removed chart page shows not found",
     () => page.goto(`${base}/dev/charts`, { waitUntil: "networkidle" }),
-    "Chart library",
+    "This page does not exist",
   );
-  await step("switch chart persona", click("button", "DS"));
-  await step("replay charts", click("button", "Replay"));
-  await step("select a donut slice", () => page.locator('path[role="button"]').first().click());
   await step("deep link device + reload", async () => {
     await page.goto(`${base}/personas/CC/devices/CC-0001`, { waitUntil: "networkidle" });
     await page.reload({ waitUntil: "networkidle" });

@@ -1,5 +1,6 @@
 /* Column charts: baseline histogram, binned histogram, weekly volume, age × priority. */
-import { bin, max, range, scaleBand, scaleLinear, type Bin } from "d3";
+import { bin, max, range, type Bin } from "d3-array";
+import { scaleBand, scaleLinear } from "d3-scale";
 import type { AgeBucket } from "../api/types.ts";
 import { usePalette } from "../theme/usePalette.ts";
 import { AnimRect, SvgFluid, Txt } from "./core.tsx";

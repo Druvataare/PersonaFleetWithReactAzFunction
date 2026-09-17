@@ -7,3 +7,4 @@ coverage
 !.vscode/extensions.json
 .DS_Store
 Thumbs.db
+e2e/audit-output

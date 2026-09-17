@@ -81,7 +81,7 @@ export function PillarGauge({ pillars, size = 200 }: { pillars: Pillars; size?: 
   const a0 = -Math.PI * 0.75;
   const a1 = Math.PI * 0.75;
   return (
-    <SvgFluid w={size} h={size} maxW={size} label="Health pillars">
+    <SvgFluid w={size} h={size} maxW={size} label="Health pillars" overflowVisible>
       <g transform={`translate(${size / 2},${size / 2})`}>
         {PILLARS.map(([k, l], i) => {
           const v = pillars[k];

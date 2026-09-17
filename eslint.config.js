@@ -27,7 +27,12 @@ export default tseslint.config(
     },
   },
   {
-    files: ["**/*.config.{js,ts}", "e2e/**/*.mjs"],
+    files: ["**/*.config.{js,ts}"],
     languageOptions: { globals: globals.node },
+  },
+  {
+    /* e2e scripts run in Node and pass functions to the browser page. */
+    files: ["e2e/**/*.mjs"],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
 );
