@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Outlet, useLocation } from "react-router";
 import { useUi } from "../store/ui.ts";
 import { applyTheme } from "../theme/themes.ts";
+import { TourController } from "../tour/TourController.tsx";
 import { Crumbs } from "./Crumbs.tsx";
 import { Topbar } from "./Topbar.tsx";
 
@@ -33,6 +34,7 @@ export function AppLayout() {
       <main className="wrap body" id="app">
         <Outlet />
       </main>
+      <TourController />
     </>
   );
 }

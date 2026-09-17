@@ -2,6 +2,7 @@ import { NavLink } from "react-router";
 import { Icon, type IconName } from "../components/Icon.tsx";
 import { useUi } from "../store/ui.ts";
 import { THEME_KEYS, THEMES, isThemeKey } from "../theme/themes.ts";
+import { useTour } from "../tour/store.ts";
 
 const NAV: ReadonlyArray<{ to: string; label: string; icon: IconName }> = [
   { to: "/personas", label: "Personas", icon: "layers" },
@@ -40,6 +41,7 @@ function BrandMark() {
 
 export function Topbar() {
   const { theme, motion, chartNames, setTheme, toggleMotion, toggleChartNames } = useUi();
+  const startTour = useTour((t) => t.start);
   const mocks = import.meta.env.VITE_USE_MOCKS === "true";
 
   return (
@@ -86,7 +88,12 @@ export function Topbar() {
           >
             CHART NAMES
           </button>
-          <button type="button" className="toggle" disabled title="The guided tour arrives in step 11">
+          <button
+            type="button"
+            className="toggle"
+            onClick={startTour}
+            title="Play a self-driving walkthrough of every screen — record this"
+          >
             &#9654; TOUR
           </button>
           <label className="sr-only" htmlFor="themesel">

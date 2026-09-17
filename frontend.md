@@ -25,8 +25,8 @@ Building the React front end from the `personalfleet.html` wireframe, using the 
 | 7   | Persona page + Device page | Done        | 17 Sep 2026   |
 | 8   | Baselines page             | Done        | 17 Sep 2026   |
 | 9   | Tickets page               | Done        | 17 Sep 2026   |
-| 10  | Change page + Switch page  | Testing     |               |
-| 11  | Guided tour                | Not started |               |
+| 10  | Change page + Switch page  | Done        | 17 Sep 2026   |
+| 11  | Guided tour                | Testing     |               |
 | 12  | Quality pass + deploy      | Not started |               |
 
 Status values: `Not started` · `In progress` · `Testing` · `Done`
@@ -789,3 +789,35 @@ Baseline-dependent numbers (health, fit, ticket status) are not computed by the 
 | `npm run test:coverage`        | 97.4% statements, 87.6% branches, 97.7% functions, 98.2% lines                                                                                                                                                                                                                                                                                                      |
 | Smoke test                     | Pass: 47 steps (adds Change-table navigation, picking user and persona, Apply, log link to Change page)                                                                                                                                                                                                                                                             |
 | Typecheck, lint, format, build | Pass                                                                                                                                                                                                                                                                                                                                                                |
+
+### Step 11 — Guided tour (17 Sep 2026)
+
+**Built** (under `apps/web/src/tour`)
+
+| Path                 | Contents                                                                                                                                                                                                                                                                                                 |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `steps.ts`           | The 18-step script (title card + four acts + close) with captions, eyebrows, durations, screens, persona, confidence band, ticket mode and scroll target; `tourPath`, `sameScreen`                                                                                                                       |
+| `store.ts`           | Tour state: active, step, paused, captions; `start`, `stop`, `go`, `togglePause`, `toggleCaptions`                                                                                                                                                                                                       |
+| `TourController.tsx` | Applies each step (navigate, set band / ticket mode, scroll to the section once rendered, or to the top on a new screen), auto-advances after the step's duration, keyboard shortcuts, body classes, and the overlay: progress bar, title card, caption panel, control bar (‹ ❚❚/▶ › · 01 / 18 · CC · ✕) |
+
+The top bar's **▶ TOUR** button starts it. Exiting (✕, Escape, or after the last step) resets the page filters and returns to Personas, as the wireframe does.
+
+**Keyboard:** Space pause / resume · ← → previous / next · C captions on / off · Esc exit.
+
+**Changes from the wireframe**
+
+- Scrolling waits for the target section to render (up to 4 s) instead of a fixed 420 ms, so it still lands correctly while data loads.
+- The caption panel is announced to screen readers (`aria-live`); controls have labels.
+- Resuming restarts the step's full duration (same as the wireframe).
+
+**Test results**
+
+| Check                          | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Script parity                  | The tour script is **identical to the wireframe's `TOUR`** (18 steps, 227 s total)                                                                                                                                                                                                                                                                                                                                                                                       |
+| Tour tests                     | Title card then auto-advance; each step's route (Personas, Baselines DEV / DS / CC, Tickets, Change), band `low`, ticket mode `req` / `inc`; smooth scroll to the section; previous / next / pause / resume (paused tour does not advance, resume restarts the duration); progress bar; Space, arrows, C and Escape (Escape resets filters and returns to Personas); keys ignored when the tour is off; CC and exit buttons; the tour ends by itself after the last step |
+| Real-browser check             | Smoke test plays all 18 steps in Chrome against the minified build, checking the route at each screen change, pause and Escape. Same step in the wireframe and React (step 6, review queue): same caption, controls and filter; with realistic step timing both scroll the review-queue heading to 96 px from the top                                                                                                                                                    |
+| `npm test`                     | Pass: 25 test files, 509 tests, no React warnings                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `npm run test:coverage`        | 97.3% statements, 87.8% branches, 97.6% functions, 98.1% lines                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Smoke test                     | Pass: 48 steps                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Typecheck, lint, format, build | Pass                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |

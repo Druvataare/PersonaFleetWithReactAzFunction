@@ -44,6 +44,8 @@ export interface Wireframe {
   charts: Record<string, (...args: any[]) => string> & { setTicketCategory: (cat: string | null) => void };
   /** The wireframe's persona-switch impact metrics, graded against its default baselines. */
   swMetrics: (device: any, from: string, to: string) => any;
+  /** The wireframe's guided tour script. */
+  TOUR: any[];
   TASKS_AUTO: Record<string, number>;
   ONBOARD_DAYS: Record<string, number>;
 }
@@ -87,6 +89,11 @@ export function loadWireframe(): Wireframe {
     "/* ------------------------- SMALL BUILDERS",
   );
   const fit = section(html, "/* ---------------- DEVICE FIT ANALYSIS", "function fitBlock");
+  const tour = section(
+    html,
+    "/* ======================== GUIDED TOUR",
+    "/* ===================== PERSONA SWITCH",
+  );
   const switching = section(
     html,
     "/* ===================== PERSONA SWITCH",
@@ -94,10 +101,10 @@ export function loadWireframe(): Wireframe {
   );
   const factory = new Function(
     "d3",
-    `const MONO = 'ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace';\n${core}\n${charts}\nlet model;\nconst state = { tcat: null, baselines: JSON.parse(JSON.stringify(DEFAULT_BASELINE)) };\n${fit}\n${switching}
+    `const MONO = 'ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace';\n${core}\n${charts}\nlet model;\nconst state = { tcat: null, baselines: JSON.parse(JSON.stringify(DEFAULT_BASELINE)) };\n${fit}\n${tour}\n${switching}
     return { PERSONA_DEFS, APPS, DEFAULT_BASELINE, WEIGHTS, RAW, MIGRATIONS, EXCEPTIONS,
       TITLE_ROWS, INCIDENTS, REQUESTS, buildModel, fitByPersona: (m) => { model = m; return fitByPersona(); },
-      swMetrics, TASKS_AUTO, ONBOARD_DAYS,
+      swMetrics, TASKS_AUTO, ONBOARD_DAYS, TOUR,
       charts: { ${CHART_FNS.join(", ")}, setTicketCategory: (c) => { state.tcat = c; } } };`,
   ) as (lib: typeof d3) => Wireframe;
   cached = factory(d3);

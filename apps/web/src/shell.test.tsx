@@ -99,9 +99,9 @@ describe("top bar", () => {
     expect(document.body).not.toHaveClass("types");
   });
 
-  it("shows the tour button as not yet available and flags demo data", () => {
+  it("offers the guided tour and flags demo data", () => {
     renderApp("/personas");
-    expect(screen.getByRole("button", { name: /TOUR/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /TOUR/ })).toBeEnabled();
     expect(screen.getByText("DEMO DATA")).toBeInTheDocument();
   });
 });

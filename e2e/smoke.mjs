@@ -170,6 +170,32 @@ async function run() {
     await page.getByRole("link", { name: "Change page" }).first().click();
     await page.getByRole("heading", { name: "Change" }).waitFor();
   });
+  await step("guided tour: all 18 steps", async () => {
+    await page.goto(`${base}/personas`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /TOUR/ }).click();
+    await page.getByRole("heading", { level: 1, name: "Persona Fleet Command" }).waitFor();
+    const expectPath = {
+      1: "/personas",
+      6: "/baselines/DEV",
+      8: "/baselines/DS",
+      10: "/baselines/CC",
+      11: "/tickets",
+      15: "/change",
+      17: "/personas",
+    };
+    for (let i = 1; i < 18; i++) {
+      await page.keyboard.press("ArrowRight");
+      await page.getByText(`${String(i + 1).padStart(2, "0")} / 18`).waitFor();
+      await page.waitForTimeout(250);
+      const at = new URL(page.url()).pathname;
+      if (expectPath[i] && at !== expectPath[i])
+        throw new Error(`step ${i + 1} expected ${expectPath[i]}, at ${at}`);
+    }
+    await page.keyboard.press("Space");
+    await page.getByRole("button", { name: "Resume" }).waitFor();
+    await page.keyboard.press("Escape");
+    await page.getByRole("region", { name: "Guided tour" }).waitFor({ state: "detached" });
+  });
   await step(
     "chart library",
     () => page.goto(`${base}/dev/charts`, { waitUntil: "networkidle" }),
