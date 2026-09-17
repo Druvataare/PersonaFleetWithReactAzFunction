@@ -23,9 +23,10 @@ export interface UiState {
   mappingBand: ConfidenceBand | null;
   mappingQuery: string;
 
-  /* Persona page */
+  /* Persona page: ticket-category filter and device search, for the persona in deviceFilterPersona */
   ticketCategory: string | null;
   deviceQuery: string;
+  deviceFilterPersona: PersonaId | null;
 
   /* Tickets page */
   ticketKind: TicketKind;
@@ -51,6 +52,7 @@ const FILTER_DEFAULTS = {
   mappingQuery: "",
   ticketCategory: null,
   deviceQuery: "",
+  deviceFilterPersona: null,
   ticketKind: "inc",
   ticketPersona: "all",
   ticketCatFilter: null,

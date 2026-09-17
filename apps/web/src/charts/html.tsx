@@ -86,7 +86,8 @@ export function Bullet({ label, actual, target, max, unit, invert = false, icon 
   );
 }
 
-function BarFill({ pct, color, index }: { pct: number; color: string; index: number }) {
+/** A horizontal fill that grows to `pct`% of its track. Must sit inside a MotionFrame. */
+export function MeterBar({ pct, color, index }: { pct: number; color: string; index: number }) {
   const t = ease.out(progress(useElapsed(), Math.min(index * 30, 400), 700));
   return (
     <div
@@ -117,7 +118,7 @@ export function BarList({ rows, color }: { rows: KeyCount[]; color: string }) {
               {r.k}
             </div>
             <div className="bar-track">
-              <BarFill pct={(r.n / top) * 100} color={color} index={i} />
+              <MeterBar pct={(r.n / top) * 100} color={color} index={i} />
             </div>
             <div
               className="m"

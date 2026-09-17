@@ -2,9 +2,13 @@ import type { PersonaModel } from "@pfc/scoring";
 import { Link } from "react-router";
 import { PersonaRing } from "../../charts/index.ts";
 import { ChartType } from "../../components/ui.tsx";
+import { useUi } from "../../store/ui.ts";
 
 /** One radial health ring per persona; each card opens the persona page. */
 export function PersonaGrid({ personas }: { personas: PersonaModel[] }) {
+  const set = useUi((s) => s.set);
+  /* Opening a persona from the grid starts with no ticket filter or device search, as in the wireframe. */
+  const clearDeviceFilters = () => set({ ticketCategory: null, deviceQuery: "", deviceFilterPersona: null });
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
@@ -19,7 +23,13 @@ export function PersonaGrid({ personas }: { personas: PersonaModel[] }) {
 
       <div className="personas" aria-label="Persona cards">
         {personas.map((p) => (
-          <Link key={p.id} to={`/personas/${p.id}`} className="ring-card" style={{ textDecoration: "none" }}>
+          <Link
+            key={p.id}
+            to={`/personas/${p.id}`}
+            className="ring-card"
+            style={{ textDecoration: "none" }}
+            onClick={clearDeviceFilters}
+          >
             <PersonaRing pid={p.id} health={p.health} underPct={p.underPct} />
             <div style={{ marginTop: 12, textAlign: "center" }}>
               <div className="ring-name">{p.name}</div>

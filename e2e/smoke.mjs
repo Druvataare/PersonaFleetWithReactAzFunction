@@ -107,7 +107,16 @@ async function run() {
   await step("Needs attention filter", click("button", "Needs attention"));
   await step("All personas filter", click("button", "All personas"));
   await step("open Engineering", click("link", /Engineering/), "Engineering");
-  await step("open a device", () => page.locator("table a").first().click(), undefined);
+  await step("persona ticket mix filter", () =>
+    page.getByRole("group", { name: "Ticket mix legend" }).getByRole("button").first().click(),
+  );
+  await step("clear ticket mix filter", click("button", "Clear"));
+  await step("persona device search", () => page.fill("#devsearch", "a"));
+  await step("open a device", () => page.locator('table[aria-label="Devices"] tbody tr').first().click());
+  await step("raise provisioning request", async () => {
+    await page.getByRole("button", { name: "Raise provisioning request" }).click();
+    await page.getByRole("status").filter({ hasText: "routed to EUC-Provisioning" }).waitFor();
+  });
   await step("back to persona", click("button", "Back"), "Engineering");
   await step("back to Personas", click("button", "Back"), "Personas");
   await step("nav Baselines", click("link", "Baselines"), "Baselines & device fit");
