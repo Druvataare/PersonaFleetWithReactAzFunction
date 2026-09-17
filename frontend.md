@@ -17,8 +17,8 @@ Building the React front end from the `personalfleet.html` wireframe, using the 
 | #   | Step                       | Status      | Date approved |
 | --- | -------------------------- | ----------- | ------------- |
 | 1   | Project scaffold           | Done        | 17 Sep 2026   |
-| 2   | Scoring package            | Testing     |               |
-| 3   | Sample data + mock API     | Not started |               |
+| 2   | Scoring package            | Done        | 17 Sep 2026   |
+| 3   | Sample data + mock API     | Testing     |               |
 | 4   | App shell                  | Not started |               |
 | 5   | Chart library              | Not started |               |
 | 6   | Personas page              | Not started |               |
@@ -85,7 +85,7 @@ Status values: `Not started` · `In progress` · `Testing` · `Done`
   - sample devices with tickets and installed apps
   - migrations, app exceptions, job-title mapping rows, incidents, service requests
 - Add MSW (Mock Service Worker) handlers for the architecture endpoints:
-  - `GET /api/personas/summary`, `/api/fleet/devices`, `/api/baselines`
+  - `GET /api/personas`, `/api/baselines`, `/api/catalog`, `/api/fleet/devices`
   - `GET /api/mapping/summary`, `/api/mapping/review`
   - `GET /api/tickets/summary`
   - `GET /api/change/migrations`, `/api/change/exceptions`
@@ -428,4 +428,73 @@ Status values: `Not started` · `In progress` · `Testing` · `Done`
 
 **Covered cases:** exactly on / above / below baseline; below on one, two and three parts; above on one part while below on another; clamping at 0 and 100; every band boundary; Windows 10 vs 11 and patched vs unpatched; ticket ceiling within / near / over; zero users; persona with no devices; baseline change re-grades health; switch to lighter and heavier personas; missing app catalogue. Expected values are calculated by hand from the wireframe formulas and noted in the tests.
 
-**Parity note:** the step 3 generator will reproduce the wireframe's exact sample data; a test there will compare this package's output with the wireframe's own numbers.
+**Parity note:** confirmed in step 3 — `parity.test.ts` runs the wireframe's own `buildModel` and `fitByPersona` and matches this package to 9 decimal places.
+
+### Step 3 — Sample data + mock API (17 Sep 2026)
+
+**Built**
+
+| Path (under `apps/web/src`)                | Contents                                                                                                                                          |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mocks/data/random.ts`                     | `mulberry32` seeded PRNG, `pick`, `iBetween`                                                                                                      |
+| `mocks/data/catalog.ts`                    | All static wireframe data: personas, apps, default baselines, weights, models, names, sites, ticket and request titles, rates, departments, roles |
+| `mocks/data/generate.ts`                   | `generateFleetData(seed)`: sample devices, exceptions, job-title rows, incidents, service requests, in the wireframe's exact random-call order    |
+| `mocks/data/wireframe.ts`                  | Test helper that runs the wireframe's own JavaScript from `reference/personalfleet.html`                                                          |
+| `mocks/db.ts`                              | In-memory mock database (lazy, resettable; resets on page reload)                                                                                 |
+| `mocks/aggregate.ts`                       | Server-side aggregations: `mappingSummary`, `mappingReview`, `ticketSummary`, `ageByPriority`, `tally`                                            |
+| `mocks/handlers.ts`                        | MSW handlers for every endpoint below                                                                                                             |
+| `mocks/browser.ts` / `server.ts`           | Mock API for the browser (service worker) and for tests (Node)                                                                                    |
+| `api/types.ts`                             | API contract types shared by the mock API and the future Azure Functions API                                                                      |
+| `api/client.ts`                            | `apiGet` / `apiPost` fetch wrapper with `ApiRequestError`                                                                                         |
+| `ApiCheck.tsx`, `apiChecks.ts`             | **Temporary** page that calls every endpoint (removed in step 4)                                                                                  |
+| `.env`                                     | `VITE_USE_MOCKS=true`                                                                                                                             |
+| `reference/personalfleet.html` (repo root) | The wireframe, used as the parity reference                                                                                                       |
+
+**API contract**
+
+| Method & path                                          | Returns                                                                                                                  |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/personas`                                    | Persona definitions with current headcount                                                                               |
+| `GET /api/baselines`                                   | Default baselines and pillar weights per persona                                                                         |
+| `GET /api/catalog`                                     | App catalogues, tasks automated, onboarding days, ticket categories, request catalogue items                             |
+| `GET /api/fleet/devices`                               | Sample devices per persona (with tickets and installed apps)                                                             |
+| `GET /api/mapping/summary?persona=`                    | Average confidence, distinct titles, titles mapped, band counts, titles and departments per persona                      |
+| `GET /api/mapping/review?persona=&band=&q=`            | Review queue, lowest confidence first, max 150 rows, plus the full match count                                           |
+| `GET /api/tickets/summary?type=inc\|req&persona=&cat=` | Totals, unique requestors, open, past SLA, by category, top 10 departments, 12 weeks, age × priority, per-persona totals |
+| `GET /api/change/migrations`                           | People moved between personas                                                                                            |
+| `GET /api/change/exceptions`                           | App exceptions                                                                                                           |
+| `GET /api/persona-changes`                             | Change log, newest first                                                                                                 |
+| `POST /api/persona-changes` `{ userId, to }`           | `201` + change; moves the device, updates headcounts, migrations and log. `400` / `404` on bad input                     |
+| `POST /api/devices/{did}/provisioning-requests`        | `201` + `INC00…` number routed to EUC-Provisioning; `404` for unknown device                                             |
+
+Baseline-dependent numbers (health, fit, ticket status) are not computed by the API: the browser grades them with `@pfc/scoring` against draft baselines, so the Baselines sliders stay instant.
+
+**Reference numbers (sample data)**
+
+| Measure                        | Value                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------ |
+| Personas / devices in estate   | 7 / 12,095                                                                           |
+| Sample devices                 | 182 (KW 34, CC 28, others 24)                                                        |
+| Job titles mapped              | 12,095 · avg confidence 99.20% · 2,671 distinct titles                               |
+| Confidence bands               | 100%: 11,891 · 50–99%: 103 · under 50%: 101                                          |
+| Incidents                      | 2,063 · 1,744 unique requestors · 1,169 open · 940 past SLA · top Connectivity (374) |
+| Service requests               | 1,438 · 1,296 unique requestors · 485 open · top Laptop Request (208)                |
+| Persona changes / people moved | 7 / 468                                                                              |
+| App exceptions                 | 56 (15 pending)                                                                      |
+
+**Test results**
+
+| Check                   | Result                                                                                                                                                                                                                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wireframe parity        | Pass: personas, apps, baselines, weights, all 182 devices, migrations, 56 exceptions, 12,095 title rows, 2,063 incidents, 1,438 requests are **identical**; persona health, pillars, counts, device scores and fit match to 9 decimal places, including after a baseline edit |
+| Seed sensitivity        | A different seed produces different data (the parity test can fail)                                                                                                                                                                                                           |
+| Mock API over HTTP      | Every endpoint, filters, persona change side effects, error responses                                                                                                                                                                                                         |
+| `npm test`              | Pass: 13 test files, 155 tests                                                                                                                                                                                                                                                |
+| `npm run test:coverage` | 98.3% statements, 97.2% branches, 97.6% functions, 99.4% lines                                                                                                                                                                                                                |
+| Typecheck, lint, format | Pass                                                                                                                                                                                                                                                                          |
+| `npm run build`         | Pass; `mockServiceWorker.js` in `dist`; mock API is a separate lazy chunk (164.7 kB gzipped)                                                                                                                                                                                  |
+
+**Notes**
+
+- `personaTrend` (the 12-week health line) is derived from live health in the browser, so it is built with the Persona page in step 7.
+- The mock database resets on page reload, like the wireframe without the Excel link.

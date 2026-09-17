@@ -1,4 +1,5 @@
 import { SCORING_VERSION } from "@pfc/scoring";
+import ApiCheck from "./ApiCheck.tsx";
 
 /* Placeholder until the app shell lands in step 4. */
 export default function App() {
@@ -9,6 +10,7 @@ export default function App() {
       <p>
         Scaffold ready. Scoring package <code>@pfc/scoring</code> v{SCORING_VERSION} is linked.
       </p>
+      <ApiCheck />
     </main>
   );
 }

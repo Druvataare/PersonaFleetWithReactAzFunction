@@ -1,0 +1,1897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Persona Fleet Command — prototype</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#0B0F1C; --bg-deep:#070A14; --panel:#121729; --panel2:#161C31;
+  --line:#232B45; --line-soft:#1B2138; --hover:rgba(255,255,255,.045); --plate:rgba(255,255,255,.02);
+  --text:#E9ECF6; --dim:#8B94B2; --faint:#5A6383;
+  --accent:#7C8CFF; --good:#35D6A5; --warn:#F5B546; --bad:#FF6B7A; --fresh:#B47CFF; --cyan:#4CC9E8;
+  --mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace;
+  --sans:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box;min-width:0}
+html,body{max-width:100%;overflow-x:hidden}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+button{font-family:inherit}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+svg{max-width:100%}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+body.motion .panel,body.motion .statbox,body.motion .ring-card{animation:rise .5s cubic-bezier(.2,.8,.2,1) both}
+.ctype{display:none;font-family:var(--mono);font-size:9px;letter-spacing:.09em;color:var(--faint);
+  border:1px solid var(--line);border-radius:4px;padding:1px 5px;margin-left:8px;white-space:nowrap;vertical-align:middle}
+body.types .ctype{display:inline-block}
+
+/* ---------------------------- guided tour ---------------------------- */
+#tourui{position:fixed;inset:0;z-index:200;pointer-events:none;display:none}
+body.tour #tourui{display:block}
+.tour-cap{position:fixed;left:50%;transform:translateX(-50%);bottom:82px;max-width:820px;width:calc(100% - 48px);
+  background:rgba(8,11,20,.9);border:1px solid var(--line);border-radius:14px;padding:16px 22px;
+  backdrop-filter:blur(10px);pointer-events:none;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+body.captionsoff .tour-cap{display:none}
+.tour-cap-eyebrow{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;color:var(--accent);margin-bottom:7px}
+.tour-cap-text{font-size:16.5px;line-height:1.5;color:#EDF0FA}
+.tour-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;display:flex;align-items:center;gap:10px;
+  background:rgba(8,11,20,.92);border:1px solid var(--line);border-radius:12px;padding:9px 12px;pointer-events:auto;
+  backdrop-filter:blur(10px)}
+.tour-bar button{background:none;border:1px solid var(--line);color:var(--dim);border-radius:8px;width:32px;height:30px;
+  display:grid;place-items:center;cursor:pointer}
+.tour-bar button:hover{color:var(--text);border-color:var(--accent)}
+.tour-bar .wide{width:auto;padding:0 11px;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em}
+.tour-step{font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.08em;padding:0 4px}
+.tour-prog{position:fixed;top:0;left:0;height:2px;background:var(--accent);width:0;z-index:210;pointer-events:none}
+.tour-title{position:fixed;inset:0;display:grid;place-items:center;background:var(--bg);z-index:205;pointer-events:none}
+.tour-title h1{font-size:44px;font-weight:650;letter-spacing:-.02em;margin:0;text-align:center}
+.tour-title p{font-family:var(--mono);font-size:12px;letter-spacing:.24em;color:var(--faint);text-align:center;margin:14px 0 0}
+.tour-title .mark-row{display:flex;gap:10px;justify-content:center;margin-top:26px}
+body.tour .topbar{opacity:.45;transition:opacity .3s}
+body.tour .topbar:hover{opacity:1}
+.toggle{background:var(--panel);color:var(--dim);border:1px solid var(--line);border-radius:8px;
+  padding:6px 9px;font-size:11px;font-family:var(--mono);letter-spacing:.04em;cursor:pointer;white-space:nowrap}
+.toggle.on{border-color:var(--accent);color:var(--text);background:var(--hover)}
+
+.wrap{max-width:1500px;margin:0 auto;padding:0 24px;width:100%}
+.topbar{border-bottom:1px solid var(--line);background:var(--bg-deep);position:sticky;top:0;z-index:20}
+.topbar-in{display:flex;align-items:center;min-height:58px;gap:18px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.brand-name{font-size:13.5px;font-weight:650;letter-spacing:-.01em;white-space:nowrap}
+.brand-sub{font-family:var(--mono);font-size:9px;color:var(--faint);letter-spacing:.14em;white-space:nowrap}
+.nav{display:flex;gap:3px;flex-wrap:wrap}
+.nav button{display:flex;align-items:center;gap:7px;padding:7px 12px;border-radius:8px;cursor:pointer;background:transparent;border:1px solid transparent;color:var(--dim);font-size:12.5px;white-space:nowrap}
+.nav button:hover{color:var(--text)}
+.nav button.on{background:var(--hover);color:var(--text)}
+.marks{margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.mark{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;background:var(--plate);border:1px solid var(--line-soft);font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--dim);white-space:nowrap}
+.theme-sel{background:var(--panel);color:var(--dim);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:11.5px;font-family:var(--mono);cursor:pointer}
+.crumbs{display:flex;align-items:center;gap:8px;padding:18px 0 10px;flex-wrap:wrap}
+.crumbs button{background:none;border:none;padding:0;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);cursor:pointer}
+.crumbs button.last{color:var(--text);cursor:default}
+.backbtn{background:none;border:1px solid var(--line);border-radius:7px;width:28px;height:28px;display:grid;place-items:center;cursor:pointer;color:var(--dim);margin-right:4px;flex-shrink:0}
+.body{padding:6px 0 60px}
+
+/* ---- fluid grids: every track can shrink, so nothing overflows ---- */
+.g1{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
+.g2{display:grid;gap:16px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{display:grid;gap:16px;grid-template-columns:repeat(3,minmax(0,1fr))}
+.g4{display:grid;gap:16px;grid-template-columns:repeat(4,minmax(0,1fr))}
+.g5{display:grid;gap:16px;grid-template-columns:repeat(5,minmax(0,1fr))}
+.g6{display:grid;gap:16px;grid-template-columns:repeat(6,minmax(0,1fr))}
+.gmain{display:grid;gap:16px;grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+.gbase{display:grid;gap:16px;grid-template-columns:210px minmax(0,1fr) 290px}
+.personas{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(178px,1fr))}
+@media(max-width:1180px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g5,.g6{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .g3{grid-template-columns:repeat(2,minmax(0,1fr))}.gbase{grid-template-columns:190px minmax(0,1fr)}}
+@media(max-width:860px){.g2,.g3,.g4,.gmain,.gbase{grid-template-columns:minmax(0,1fr)}
+  .g5,.g6{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* one heading block, same shape on every page */
+.pagehead{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;
+  padding:2px 0 14px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.pagehead .step{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--accent);margin-bottom:7px}
+.pagehead h2{font-size:20px;font-weight:650;letter-spacing:-.015em;margin:0;line-height:1.2}
+.pagehead .sub{font-size:12.5px;color:var(--dim);margin-top:5px;max-width:640px;line-height:1.5}
+.pagetools{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.statbox{display:flex;flex-direction:column}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;overflow:hidden}
+.eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint)}
+.stat-v{font-family:var(--mono);font-size:25px;letter-spacing:-.02em;line-height:1}
+.statbox{padding:14px 16px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.chip{font-family:var(--mono);font-size:11px;padding:7px 12px;border-radius:8px;cursor:pointer;background:transparent;border:1px solid var(--line);color:var(--dim);white-space:nowrap}
+.chip.on{background:var(--hover);border-color:var(--accent);color:var(--text)}
+.btn{border-radius:8px;padding:9px 12px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.btn-primary{background:var(--hover);border:1px solid var(--accent);color:var(--text)}
+.btn-ghost{background:none;border:1px solid var(--line);color:var(--dim)}
+.link{background:none;border:none;color:var(--accent);font-size:11px;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+
+.ring-card{background:none;border:none;padding:14px 6px 16px;cursor:pointer;border-radius:14px;
+  transition:transform .25s cubic-bezier(.2,.8,.2,1),background .2s;width:100%;display:block}
+.ring-card:hover{transform:translateY(-4px);background:var(--hover)}
+.ring-card:hover .ring-plate{fill:var(--hover)}
+.ring-card:hover .ring-avatar{stroke:var(--text)}
+.ring-name{font-size:15px;font-weight:650;color:var(--text);line-height:1.25;min-height:19px}
+.ring-sub{font-size:11px;color:var(--dim);margin-top:3px;line-height:1.35;min-height:15px}
+.ring-meta{font-size:11px;color:var(--faint);margin-top:7px;line-height:1.55}
+
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead tr{position:sticky;top:0;background:var(--panel2)}
+th{padding:9px 12px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--faint);font-weight:400;text-transform:uppercase;text-align:right;white-space:nowrap}
+th.l{text-align:left}
+td{padding:9px 12px;text-align:right;white-space:nowrap}
+td.l{text-align:left}
+.tscroll{overflow-x:auto}
+tbody tr{border-top:1px solid var(--line-soft);cursor:pointer}
+tbody tr:hover{background:var(--hover)}
+.m{font-family:var(--mono)}
+.search{display:flex;align-items:center;gap:8px;background:var(--bg-deep);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.search input{background:none;border:none;outline:none;color:var(--text);font-size:12px;width:170px;max-width:100%}
+
+.applet{font-size:11.5px;color:var(--dim);padding:5px 8px;background:var(--bg-deep);border:1px solid var(--line-soft);border-radius:6px;margin-bottom:5px;word-break:break-word}
+.dot{width:9px;height:9px;border-radius:3px;display:inline-block;flex-shrink:0}
+input[type=range]{height:3px;background:var(--line-soft);border-radius:2px;outline:none;accent-color:var(--accent);width:100%}
+.bar-track{flex:1;height:6px;background:var(--line-soft);border-radius:3px;min-width:20px}
+.bar-fill{height:6px;border-radius:3px;transition:width .4s}
+.row-sb{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--line-soft);font-size:12px}
+.slice,[data-act="cat"]{cursor:pointer;transition:opacity .2s}
+.sect{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);
+  display:flex;align-items:center;gap:10px;margin:24px 0 12px}
+.sect:after{content:"";flex:1;height:1px;background:var(--line)}
+.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="wrap topbar-in" id="topbar"></div></div>
+<div class="wrap"><div class="crumbs" id="crumbs"></div></div>
+<div class="wrap body" id="app"></div>
+<div id="tourui"></div>
+
+<script>
+/* ==================================================================
+   PERSONA FLEET COMMAND — presentation build
+
+   NOTE ON NAMING: a persona's headcount is `count`; its device rows
+   are `devices`. Keeping those distinct matters — collapsing them is
+   what produced the [object Object] labels in the previous build.
+   ================================================================== */
+
+const MONO='ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace';
+
+/* ---------------------------- THEMES ---------------------------- */
+const THEMES={
+  midnight:{label:"Midnight Indigo",bg:"#0B0F1C",bgDeep:"#070A14",panel:"#121729",panel2:"#161C31",line:"#232B45",lineSoft:"#1B2138",hover:"rgba(255,255,255,.045)",plate:"rgba(255,255,255,.02)",text:"#E9ECF6",dim:"#8B94B2",faint:"#5A6383",accent:"#7C8CFF",good:"#35D6A5",warn:"#F5B546",bad:"#FF6B7A",fresh:"#B47CFF",cyan:"#4CC9E8"},
+  carbon:{label:"Carbon",bg:"#0D0D0F",bgDeep:"#08080A",panel:"#151517",panel2:"#1B1B1E",line:"#2A2A2E",lineSoft:"#202024",hover:"rgba(255,255,255,.05)",plate:"rgba(255,255,255,.02)",text:"#EDEDEF",dim:"#96969E",faint:"#63636B",accent:"#8AA2FF",good:"#4ADE9B",warn:"#F0B429",bad:"#F4707F",fresh:"#C08CFF",cyan:"#5CD0E8"},
+  nord:{label:"Nord Frost",bg:"#111823",bgDeep:"#0C121B",panel:"#18202D",panel2:"#1E2734",line:"#2B3648",lineSoft:"#222B3A",hover:"rgba(216,222,233,.05)",plate:"rgba(216,222,233,.02)",text:"#E5E9F0",dim:"#93A0B4",faint:"#68758A",accent:"#88C0D0",good:"#A3BE8C",warn:"#EBCB8B",bad:"#BF616A",fresh:"#B48EAD",cyan:"#8FBCBB"},
+  ember:{label:"Ember",bg:"#14100D",bgDeep:"#0E0B09",panel:"#1D1713",panel2:"#241D18",line:"#352A22",lineSoft:"#28201A",hover:"rgba(255,236,214,.05)",plate:"rgba(255,236,214,.02)",text:"#F2E9E0",dim:"#A9998A",faint:"#786A5E",accent:"#E0A458",good:"#7FBF7A",warn:"#E8B44C",bad:"#E06C55",fresh:"#C58CD8",cyan:"#63BFC4"},
+  teal:{label:"Deep Teal",bg:"#07161A",bgDeep:"#041014",panel:"#0D2026",panel2:"#12292F",line:"#1D3A42",lineSoft:"#163038",hover:"rgba(214,247,247,.05)",plate:"rgba(214,247,247,.02)",text:"#E3F2F2",dim:"#8AA9AC",faint:"#5C7C80",accent:"#5AD1C8",good:"#5CD69A",warn:"#EFC05A",bad:"#F0757F",fresh:"#A78BFA",cyan:"#4CC9E8"},
+  daylight:{label:"Daylight",bg:"#F5F6FA",bgDeep:"#FFFFFF",panel:"#FFFFFF",panel2:"#EEF0F6",line:"#DDE1EC",lineSoft:"#E8EBF3",hover:"rgba(20,28,56,.045)",plate:"rgba(20,28,56,.025)",text:"#161C2E",dim:"#5C6580",faint:"#8A93AC",accent:"#4457E0",good:"#0F9D6B",warn:"#B87500",bad:"#D63652",fresh:"#7A3FD0",cyan:"#0E86A8"},
+  parchment:{label:"Parchment",bg:"#F6F2EA",bgDeep:"#FFFDF8",panel:"#FFFDF8",panel2:"#EFE9DE",line:"#DFD6C6",lineSoft:"#E9E2D5",hover:"rgba(60,45,25,.05)",plate:"rgba(60,45,25,.025)",text:"#241D14",dim:"#6B5D4B",faint:"#988975",accent:"#7A4E1F",good:"#2F7D4F",warn:"#A8700B",bad:"#B33A2B",fresh:"#7A4192",cyan:"#12707F"}
+};
+const C=Object.assign({},THEMES.midnight);
+const CSS_MAP={"--bg":"bg","--bg-deep":"bgDeep","--panel":"panel","--panel2":"panel2","--line":"line",
+  "--line-soft":"lineSoft","--hover":"hover","--plate":"plate","--text":"text","--dim":"dim","--faint":"faint",
+  "--accent":"accent","--good":"good","--warn":"warn","--bad":"bad","--fresh":"fresh","--cyan":"cyan"};
+function applyTheme(k){const t=THEMES[k];Object.keys(t).forEach(x=>{if(x!=="label")C[x]=t[x];});
+  Object.keys(CSS_MAP).forEach(v=>document.documentElement.style.setProperty(v,C[CSS_MAP[v]]));}
+const band=v=>v>=85?C.good:v>=70?C.warn:C.bad;
+const bandLabel=v=>v>=85?"Healthy":v>=70?"Watch":"At risk";
+const gb=v=>v>=1024?(v/1024)+"TB":v+"GB";
+const catColor=()=>d3.scaleOrdinal().domain(TICKET_CATS).range([C.bad,C.warn,C.accent,C.cyan,C.good,C.fresh]);
+const HUE={DEV:"#6E7BF2",KW:"#2FA9C9",CC:"#22A57F",FIELD:"#D98429",EXEC:"#C4649B",DS:"#9B5FE0",CRE:"#7C6BE8"};
+
+/* --------------------------- SAMPLE DATA ------------------------ */
+function mulberry32(a){return function(){a|=0;a=(a+0x6d2b79f5)|0;let t=Math.imul(a^(a>>>15),1|a);
+  t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
+const rnd=mulberry32(20260815);
+const pick=a=>a[Math.floor(rnd()*a.length)];
+const iBetween=(a,b)=>Math.round(a+rnd()*(b-a));
+
+const APPS={
+  DEV:["Visual Studio Code","Docker Desktop","GitHub Copilot","Postman","WSL2 Toolchain","IntelliJ IDEA"],
+  EXEC:["Power BI Desktop","Board Portal","DocuSign","Zoom Rooms Controller"],
+  FIELD:["Field Service Mobile","ArcGIS Runtime","Offline Map Pack","Rugged Diagnostics"],
+  CC:["Genesys Cloud Desktop","CRM Agent Console","Call Screen Recorder","Knowledge Assist"],
+  KW:["Microsoft 365 Apps","Visio","Project","Company Portal"],
+  DS:["Anaconda Distribution","Databricks CLI","Tableau Desktop","CUDA Toolkit","Fabric Notebook Sync"],
+  CRE:["Adobe Creative Cloud","Figma Desktop","Blender","Colour Calibrator"]
+};
+/* `count` = people/devices in the persona. Never reuse this key for rows. */
+const PERSONA_DEFS=[
+  {id:"DEV",  name:"Engineering",     sub:"Software & platform build", count:1840},
+  {id:"KW",   name:"Knowledge Worker",sub:"Corporate functions",       count:6120},
+  {id:"CC",   name:"Contact Centre",  sub:"Service desk & sales",      count:2450},
+  {id:"FIELD",name:"Field Engineer",  sub:"On-site & rugged",          count:980},
+  {id:"EXEC", name:"Executive",       sub:"Leadership & board",        count:210},
+  {id:"DS",   name:"Data Science",    sub:"Modelling & analytics",     count:340},
+  {id:"CRE",  name:"Creative Studio", sub:"Brand, video & 3D",         count:155}
+].map(p=>Object.assign(p,{hue:HUE[p.id]}));
+
+const DEFAULT_BASELINE={
+  DEV:  {ramGB:32,storageGB:1024,cpuScore:78,bootSec:40,crashes:2,freePct:20,batteryPct:75,ticketsPer100:12},
+  KW:   {ramGB:16,storageGB:512, cpuScore:55,bootSec:45,crashes:3,freePct:15,batteryPct:70,ticketsPer100:9},
+  CC:   {ramGB:16,storageGB:256, cpuScore:50,bootSec:50,crashes:3,freePct:15,batteryPct:65,ticketsPer100:14},
+  FIELD:{ramGB:16,storageGB:512, cpuScore:58,bootSec:45,crashes:3,freePct:18,batteryPct:80,ticketsPer100:16},
+  EXEC: {ramGB:32,storageGB:1024,cpuScore:70,bootSec:35,crashes:1,freePct:25,batteryPct:85,ticketsPer100:6},
+  DS:   {ramGB:64,storageGB:2048,cpuScore:88,bootSec:40,crashes:2,freePct:25,batteryPct:70,ticketsPer100:11},
+  CRE:  {ramGB:64,storageGB:2048,cpuScore:85,bootSec:40,crashes:2,freePct:25,batteryPct:70,ticketsPer100:10}
+};
+const WEIGHTS={
+  DEV:{prov:30,perf:30,comp:15,exp:10,sup:15}, KW:{prov:20,perf:20,comp:25,exp:15,sup:20},
+  CC:{prov:20,perf:25,comp:20,exp:10,sup:25},  FIELD:{prov:20,perf:15,comp:20,exp:30,sup:15},
+  EXEC:{prov:25,perf:25,comp:20,exp:20,sup:10},DS:{prov:35,perf:30,comp:15,exp:10,sup:10},
+  CRE:{prov:35,perf:30,comp:15,exp:10,sup:10}
+};
+const MODELS={DEV:["Latitude 7450","EliteBook 860 G11","ThinkPad P14s"],KW:["Latitude 5450","EliteBook 640 G11","ThinkPad L14"],
+  CC:["OptiPlex 7010 SFF","Latitude 3450"],FIELD:["Latitude 7030 Rugged","ToughBook FZ-55"],
+  EXEC:["XPS 14","Surface Laptop 7","MacBook Pro 14"],DS:["Precision 5690","ZBook Studio G11"],
+  CRE:["Precision 7690","MacBook Pro 16"]};
+const FIRST=["Aarav","Meera","Rohan","Priya","Ishaan","Neha","Kabir","Ananya","Vikram","Sana","Arjun","Divya","Farhan","Riya","Nikhil","Tara","Omar","Leah","Marcus","Chen"];
+const LAST=["Sharma","Iyer","Kapoor","Nair","Bose","Reddy","Malhotra","Verma","Sinha","DSouza","Khan","Patel","Rao","Menon","Gill","Wu","Novak","Okafor","Silva","Haruna"];
+const SITES=["Pune HQ","Bengaluru","Hyderabad","London","Austin","Krakow","Remote"];
+const TICKET_CATS=["Performance","Hardware","Application","Access","Connectivity","Provisioning"];
+const TICKET_TITLES={
+  Performance:["Laptop extremely slow after patch","High memory usage, apps freezing","Boot time over 3 minutes"],
+  Hardware:["Battery drains within 90 minutes","Docking station not detected","Keyboard keys unresponsive"],
+  Application:["Build tooling crashes on launch","Add-in fails to load","Licence not applied after install"],
+  Access:["Cannot access persona app catalogue","MFA loop on sign-in","Shared drive permission denied"],
+  Connectivity:["VPN drops every 10 minutes","Wi-Fi disconnects at site","Poor call quality on softphone"],
+  Provisioning:["Request additional RAM for build workloads","Storage upgrade for model artefacts","Persona change - device not reimaged"]
+};
+/* Share of devices provisioned below their persona contract. Contact
+   Centre and Field Engineer are the weakest — the same two personas
+   with the poorest job-title mapping and the heaviest ticket load. */
+const UNDER_RATE={CC:.46,FIELD:.40,DS:.24,CRE:.20,KW:.20,DEV:.13,EXEC:.09};
+function makeDevices(pid,n){
+  const b=DEFAULT_BASELINE[pid],out=[];
+  for(let i=0;i<n;i++){
+    const under=rnd()<UNDER_RATE[pid];
+    const ramGB=under&&rnd()<.7?(pick([8,16,32].filter(r=>r<b.ramGB))||8):pick([b.ramGB,b.ramGB,b.ramGB*2]);
+    const storageGB=under&&rnd()<.6?(pick([256,512,1024].filter(s=>s<b.storageGB))||256):b.storageGB;
+    const cpuScore=under?iBetween(b.cpuScore-26,b.cpuScore-3):iBetween(b.cpuScore,98);
+    const user=pick(FIRST)+" "+pick(LAST);
+    const tickets=[];const tn=rnd()<.55?iBetween(1,3):0;
+    for(let t=0;t<tn;t++){const cat=pick(TICKET_CATS);
+      tickets.push({number:"INC00"+iBetween(41000,49999),cat,short:pick(TICKET_TITLES[cat]),
+        priority:pick(["P1","P2","P2","P3","P3","P4"]),state:pick(["New","In Progress","In Progress","On Hold","Resolved"]),
+        group:pick(["EUC-Desktop","EUC-Provisioning","Network-Ops","App-Support"]),ageDays:iBetween(1,34)});}
+    const catalog=APPS[pid];
+    const installed=catalog.filter(()=>rnd()>.12);
+    const extra=rnd()<.22?[pick(Object.values(APPS).flat())]:[];
+    out.push({id:pid+"-"+String(i+1).padStart(4,"0"),host:pid+"-WKS-"+iBetween(1000,9999),user,
+      email:user.split(" ")[0].toLowerCase()+"."+user.split(" ")[1].toLowerCase()+"@contoso.com",
+      site:pick(SITES),model:pick(MODELS[pid]),ramGB,storageGB,freePct:iBetween(6,62),cpuScore,
+      bootSec:iBetween(b.bootSec-14,b.bootSec+46),
+      crashes:rnd()<.7?iBetween(0,b.crashes):iBetween(b.crashes+1,b.crashes+6),
+      batteryPct:iBetween(48,100),patched:rnd()>.14,
+      osBuild:pick(["Win11 23H2","Win11 24H2","Win11 24H2","Win10 22H2"]),lastSeen:iBetween(0,9),
+      tickets,installed:installed.concat(extra)});
+  }
+  return out;
+}
+const RAW=PERSONA_DEFS.map(p=>Object.assign({},p,{sample:makeDevices(p.id,p.id==="KW"?34:p.id==="CC"?28:24)}));
+
+const MIGRATIONS=[
+  {from:"KW",to:"DS",people:148},{from:"DEV",to:"DS",people:96},{from:"KW",to:"CRE",people:62},
+  {from:"CC",to:"KW",people:74},{from:"KW",to:"FIELD",people:41},{from:"FIELD",to:"KW",people:28},
+  {from:"CC",to:"DEV",people:19}
+];
+const REASONS=["Covers a second role part-time","Supports an escalation rota","Owns a reporting pack for leadership",
+  "Runs a cross-team tool nobody else maintains","Legacy process not yet migrated","Client deliverable requires it",
+  "Trialling ahead of a catalogue change","Inherited from a previous team"];
+const EXCEPTIONS=(()=>{
+  const named=[
+    {id:"RITM0049211",user:"Meera Iyer",persona:"KW",app:"Visual Studio Code",reason:"Maintains reporting scripts for finance close",state:"Approved",raised:4},
+    {id:"RITM0049233",user:"Kabir Khan",persona:"CC",app:"Power BI Desktop",reason:"Builds queue dashboards for team leads",state:"Pending",raised:7},
+    {id:"RITM0049240",user:"Tara Menon",persona:"FIELD",app:"Adobe Creative Cloud",reason:"Produces site survey photo reports",state:"Pending",raised:2},
+    {id:"RITM0049255",user:"Marcus Novak",persona:"EXEC",app:"Tableau Desktop",reason:"Reviews commercial models before board pack",state:"Approved",raised:11},
+    {id:"RITM0049261",user:"Divya Rao",persona:"DEV",app:"Genesys Cloud Desktop",reason:"Supports agent tooling escalations on rota",state:"Approved",raised:15},
+    {id:"RITM0049272",user:"Farhan Gill",persona:"KW",app:"CUDA Toolkit",reason:"Trialling local inference, no GPU assigned",state:"Rejected",raised:19}];
+  const weight={KW:16,CC:10,DEV:8,FIELD:6,DS:5,CRE:3,EXEC:2},gen=[];
+  Object.keys(weight).forEach(pid=>{for(let i=0;i<weight[pid];i++){
+    const outside=Object.keys(APPS).filter(k=>k!==pid);
+    gen.push({id:"RITM00"+iBetween(49300,49900),user:pick(FIRST)+" "+pick(LAST),persona:pid,
+      app:pick(APPS[pick(outside)]),reason:pick(REASONS),
+      state:pick(["Pending","Pending","Approved","Approved","Approved","Rejected"]),raised:iBetween(1,40)});}});
+  return named.concat(gen);
+})();
+
+/* -------- JOB TITLE / DEPARTMENT MAPPING CONFIDENCE (new) -------- */
+const DEPTS={
+  DEV:["Platform Engineering","Product Engineering","QA & Release","DevOps","Architecture"],
+  KW:["Finance","Human Resources","Legal","Marketing","Procurement","Operations"],
+  CC:["Customer Service","Inside Sales","Retention","Billing Support"],
+  FIELD:["Field Operations","Installations","Maintenance","Site Survey"],
+  EXEC:["Executive Office","Strategy","Board Affairs"],
+  DS:["Data Science","Advanced Analytics","AI Research"],
+  CRE:["Brand Studio","Video Production","3D & Motion"]
+};
+const ROLES={
+  DEV:["Software Engineer","Backend Developer","Frontend Developer","Platform Engineer","Release Engineer","Test Automation Engineer","Site Reliability Engineer","Build Engineer"],
+  KW:["Analyst","Coordinator","Business Partner","Specialist","Administrator","Manager","Officer","Consultant"],
+  CC:["Service Advisor","Support Agent","Team Coach","Retention Agent","Billing Advisor","Queue Supervisor"],
+  FIELD:["Field Engineer","Installation Technician","Maintenance Technician","Survey Engineer","Site Lead"],
+  EXEC:["Director","Vice President","Chief of Staff","Head of Function","Managing Director"],
+  DS:["Data Scientist","ML Engineer","Analytics Engineer","Research Scientist","Statistician"],
+  CRE:["Designer","Motion Artist","Video Editor","3D Artist","Art Director"]
+};
+const GRADES=["Associate","Junior","","","Senior","Lead","Principal","Staff"];
+const SUFFIX=["","","I","II","III","IV","(Grade 1)","(Grade 2)","- Tier 1","- Tier 2","- EMEA","- APAC","- Americas"];
+const LOWREASON=["Title text too short to classify","Free-text title, no catalogue match","Title maps to two personas equally",
+  "Contractor title not in HR feed","Legacy title from acquired entity","Abbreviation not recognised"];
+/* One row per mapped job title. conf = model confidence that the title
+   belongs to the persona it was mapped to. */
+/* Mapping quality per persona. These are the same personas that go on
+   to show the worst device fit and the heaviest ticket load — the story
+   runs mapping -> baseline -> support, in that order. */
+const MISMAP={DEV:.004,KW:.012,CC:.035,FIELD:.030,EXEC:.001,DS:.005,CRE:.010};
+const TITLE_ROWS=(()=>{
+  const out=[];
+  PERSONA_DEFS.forEach(p=>{
+    const n=p.count;                       /* one title per person, per device */
+    for(let i=0;i<n;i++){
+      const g=pick(GRADES),base=pick(ROLES[p.id]),sfx=pick(SUFFIX),r=rnd(),m=MISMAP[p.id];
+      const conf=r>=m?100:(r<m*.45?iBetween(12,49):iBetween(50,99));
+      out.push({t:((g?g+" ":"")+base+(sfx?" "+sfx:"")).trim(),dept:pick(DEPTS[p.id]),
+        pid:p.id,conf,why:conf<50?pick(LOWREASON):(conf<100?"Close second-choice persona":"")});
+    }
+  });
+  return out;
+})();
+
+/* ---------------- SERVICENOW TICKET DATASET (new) ---------------- */
+/* Two record types on one page: incidents (something broke) and
+   service requests (somebody asked for something). Both are measured
+   per user against the persona's ticket ceiling, which is a baseline
+   slider — so the tables here move when a baseline moves. */
+const CATALOG=["Laptop Request","Software Install","VPN Access","Email Access",
+  "Access Request","Peripheral Request","Storage Upgrade","Memory Upgrade"];
+const REQ_TITLES={
+  "Laptop Request":["New starter laptop","Replacement for damaged unit","Loan device for travel"],
+  "Software Install":["Install licensed design suite","Add analytics package","Reinstall build tooling"],
+  "VPN Access":["VPN profile for new site","Split-tunnel exception","VPN re-enable after leave"],
+  "Email Access":["Shared mailbox access","Distribution list membership","Delegate access request"],
+  "Access Request":["Access to persona app catalogue","Elevated rights for install","Folder permission request"],
+  "Peripheral Request":["Second monitor","Docking station","Headset for call handling"],
+  "Storage Upgrade":["Disk upgrade for artefacts","Additional local storage","Storage for media capture"],
+  "Memory Upgrade":["RAM upgrade for build workloads","Memory for model training","Memory for editing suite"]
+};
+const REQ_GROUPS=["EUC-Provisioning","EUC-Desktop","Identity-Access","Procurement"];
+const INC_RATE={DEV:.10,KW:.11,CC:.30,FIELD:.42,EXEC:.04,DS:.09,CRE:.13};
+const REQ_RATE={DEV:.22,KW:.08,CC:.11,FIELD:.19,EXEC:.05,DS:.16,CRE:.14};
+function makeTickets(kind){
+  const out=[];
+  PERSONA_DEFS.forEach(p=>{
+    const users=p.count,n=Math.round(users*(kind==="inc"?INC_RATE[p.id]:REQ_RATE[p.id]));
+    for(let i=0;i<n;i++){
+      const cat=kind==="inc"?pick(TICKET_CATS):pick(CATALOG);
+      const short=pick(kind==="inc"?TICKET_TITLES[cat]:REQ_TITLES[cat]);
+      const ageDays=iBetween(0,83);
+      const st=kind==="inc"?pick(["New","In Progress","In Progress","On Hold","Resolved","Resolved","Closed"])
+                           :pick(["New","In Progress","Fulfilled","Fulfilled","Fulfilled","Rejected"]);
+      const open=["New","In Progress","On Hold"].indexOf(st)>=0;
+      const pr=kind==="inc"?pick(["P1","P2","P2","P3","P3","P3","P4"]):pick(["P2","P3","P3","P4","P4"]);
+      out.push({id:(kind==="inc"?"INC00":"RITM00")+iBetween(41000,49999),
+        pid:p.id,uid:p.id+"-U"+iBetween(1,Math.max(2,Math.round(users*.7))),
+        dept:pick(DEPTS[p.id]),cat,short,priority:pr,state:st,open,
+        group:pick(kind==="inc"?["EUC-Desktop","EUC-Provisioning","Network-Ops","App-Support"]:REQ_GROUPS),
+        ageDays,week:Math.min(11,Math.floor(ageDays/7)),
+        sla:open&&ageDays>(pr==="P1"?3:pr==="P2"?7:pr==="P3"?21:35)});
+    }
+  });
+  return out;
+}
+const INCIDENTS=makeTickets("inc"),REQUESTS=makeTickets("req");
+const TMODES=[["inc","Incidents","Something broke"],["req","Service requests","Somebody asked"]];
+
+const CBANDS=[["100","Confidence 100%","No review required","good"],
+              ["50","Confidence 50-99%","Review recommended","warn"],
+              ["low","Confidence <50%","Attention recommended","bad"]];
+const confBand=c=>c>=100?"100":c>=50?"50":"low";
+
+/* ---------------------------- SCORING --------------------------- */
+const clamp=v=>Math.max(0,Math.min(100,v));
+function scoreDevice(d,b){
+  const prov=d3.mean([d.ramGB>=b.ramGB?100:clamp(d.ramGB/b.ramGB*100),
+    d.storageGB>=b.storageGB?100:clamp(d.storageGB/b.storageGB*100),
+    d.cpuScore>=b.cpuScore?100:clamp(d.cpuScore/b.cpuScore*100)]);
+  const perf=clamp(.6*(d.bootSec<=b.bootSec?100:100-((d.bootSec-b.bootSec)/b.bootSec)*90)
+                 + .4*(d.crashes<=b.crashes?100:100-(d.crashes-b.crashes)*22));
+  const comp=clamp((d.patched?70:20)+(d.osBuild.indexOf("Win11")===0?30:5));
+  const exp=clamp(.5*(d.freePct>=b.freePct?100:d.freePct/b.freePct*100)
+                + .5*(d.batteryPct>=b.batteryPct?100:d.batteryPct/b.batteryPct*100));
+  return {prov,perf,comp,exp,underProv:d.ramGB<b.ramGB||d.storageGB<b.storageGB||d.cpuScore<b.cpuScore};
+}
+function buildModel(baselines){
+  return RAW.map(p=>{
+    const b=baselines[p.id],w=WEIGHTS[p.id];
+    const scored=p.sample.map(d=>Object.assign({},d,{s:scoreDevice(d,b)}));
+    const tCount=d3.sum(scored,d=>d.tickets.length),per100=tCount/scored.length*100;
+    const sup=clamp(per100<=b.ticketsPer100?100:100-((per100-b.ticketsPer100)/b.ticketsPer100)*70);
+    const pillars={prov:d3.mean(scored,d=>d.s.prov),perf:d3.mean(scored,d=>d.s.perf),
+      comp:d3.mean(scored,d=>d.s.comp),exp:d3.mean(scored,d=>d.s.exp),sup};
+    const health=(pillars.prov*w.prov+pillars.perf*w.perf+pillars.comp*w.comp+pillars.exp*w.exp+pillars.sup*w.sup)
+      /(w.prov+w.perf+w.comp+w.exp+w.sup);
+    const underPct=scored.filter(d=>d.s.underProv).length/scored.length;
+    const devices=scored.map(d=>Object.assign({},d,{score:.35*d.s.prov+.3*d.s.perf+.2*d.s.comp+.15*d.s.exp}));
+    const exc=EXCEPTIONS.filter(e=>e.persona===p.id);
+    return {id:p.id,name:p.name,sub:p.sub,hue:p.hue,count:p.count,     /* headcount */
+      devices,                                                          /* rows */
+      baseline:b,weights:w,pillars,health,underPct,
+      underCount:Math.round(underPct*p.count),
+      openTickets:Math.round(tCount/scored.length*p.count),ticketsPer100:per100,
+      patchPct:d3.mean(scored,d=>d.patched?100:0),
+      avgBoot:d3.mean(scored,d=>d.bootSec),
+      movedIn:d3.sum(MIGRATIONS.filter(m=>m.to===p.id),m=>m.people),
+      movedOut:d3.sum(MIGRATIONS.filter(m=>m.from===p.id),m=>m.people),
+      exceptions:exc,excPending:exc.filter(e=>e.state==="Pending").length};
+  });
+}
+
+/* ----------------------------- ICONS ---------------------------- */
+const I={chevron:'<path d="M9 18l6-6-6-6"/>',back:'<path d="M19 12H5M12 19l-7-7 7-7"/>',
+  layers:'<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>',
+  swap:'<path d="M16 3l4 4-4 4"/><path d="M20 7H4"/><path d="M8 21l-4-4 4-4"/><path d="M4 17h16"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6h.09A1.65 1.65 0 0010 3.09V3a2 2 0 114 0v.09A1.65 1.65 0 0015 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9v.09a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+  ticket:'<path d="M3 9V6a2 2 0 012-2h14a2 2 0 012 2v3a3 3 0 000 6v3a2 2 0 01-2 2H5a2 2 0 01-2-2v-3a3 3 0 000-6z"/>',
+  ram:'<rect x="3" y="8" width="18" height="9" rx="1"/><path d="M7 17v3M12 17v3M17 17v3"/>',
+  disk:'<rect x="2" y="7" width="20" height="10" rx="2"/><circle cx="7" cy="12" r="1.4"/>',
+  cpu:'<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M10 2v4M14 2v4M10 18v4M14 18v4M2 10h4M2 14h4M18 10h4M18 14h4"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  battery:'<rect x="2" y="8" width="16" height="8" rx="2"/><path d="M22 11v2"/><rect x="4" y="10" width="8" height="4"/>',
+  alert:'<path d="M12 3l9.5 17H2.5L12 3z"/><path d="M12 10v4M12 17.5v.5"/>',
+  check:'<path d="M4 12l5 5L20 6"/>',x:'<path d="M6 6l12 12M18 6L6 18"/>',plus:'<path d="M12 5v14M5 12h14"/>',
+  reset:'<path d="M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8"/><path d="M3 3v5h5"/>',
+  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>'};
+const icon=(n,s=14,c="currentColor")=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${I[n]}</svg>`;
+
+/* ---------------------------- AVATARS --------------------------- */
+function avatar(pid,size=44,color="#fff",cls=""){
+  const k=size/44,S=v=>+(v*k).toFixed(2);
+  const head=`<circle cx="${S(22)}" cy="${S(14)}" r="${S(7)}" fill="none" stroke="${color}" stroke-width="${S(1.9)}" class="${cls}"/>`;
+  const body=`<path d="M${S(8)},${S(38)} a${S(14)},${S(13)} 0 0 1 ${S(28)},0" fill="none" stroke="${color}" stroke-width="${S(1.9)}" stroke-linecap="round" class="${cls}"/>`;
+  const props={
+    DEV:`<g stroke="${color}" stroke-width="${S(1.7)}" fill="none" stroke-linecap="round" class="${cls}"><path d="M${S(13)},${S(30)} l-${S(4)},${S(3)} l${S(4)},${S(3)}"/><path d="M${S(31)},${S(30)} l${S(4)},${S(3)} l-${S(4)},${S(3)}"/></g>`,
+    KW:`<path d="M${S(16)},${S(31)} h${S(12)} v${S(5)} h-${S(12)} z" fill="none" stroke="${color}" stroke-width="${S(1.6)}" class="${cls}"/>`,
+    CC:`<g stroke="${color}" stroke-width="${S(1.7)}" fill="none" stroke-linecap="round" class="${cls}"><path d="M${S(12)},${S(15)} a${S(10)},${S(10)} 0 0 1 ${S(20)},0"/><rect x="${S(10)}" y="${S(14)}" width="${S(4)}" height="${S(7)}" rx="${S(1.6)}"/><rect x="${S(30)}" y="${S(14)}" width="${S(4)}" height="${S(7)}" rx="${S(1.6)}"/></g>`,
+    FIELD:`<path d="M${S(11)},${S(10)} a${S(11)},${S(11)} 0 0 1 ${S(22)},0 z" fill="none" stroke="${color}" stroke-width="${S(1.8)}" stroke-linejoin="round" class="${cls}"/>`,
+    EXEC:`<path d="M${S(22)},${S(23)} l-${S(3)},${S(4)} l${S(3)},${S(9)} l${S(3)},-${S(9)} z" fill="none" stroke="${color}" stroke-width="${S(1.6)}" stroke-linejoin="round" class="${cls}"/>`,
+    DS:`<g stroke="${color}" stroke-width="${S(1.6)}" fill="none" class="${cls}"><circle cx="${S(17)}" cy="${S(14)}" r="${S(4)}"/><circle cx="${S(27)}" cy="${S(14)}" r="${S(4)}"/><path d="M${S(21)},${S(14)} h${S(2)}"/></g>`,
+    CRE:`<path d="M${S(30)},${S(26)} l${S(5)},-${S(5)} l${S(3)},${S(3)} l-${S(5)},${S(5)} z M${S(30)},${S(26)} l-${S(2)},${S(5)} l${S(5)},-${S(2)}" fill="none" stroke="${color}" stroke-width="${S(1.6)}" stroke-linejoin="round" class="${cls}"/>`
+  }[pid]||"";
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0">${head}${body}${props}</svg>`;
+}
+
+/* --------------------------- D3 CHARTS -------------------------- */
+/* Every chart is fluid: fixed internal coordinates, viewBox scaling. */
+const svgFluid=(w,h,inner,maxW)=>`<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet"
+  style="width:100%;height:auto;display:block;${maxW?`max-width:${maxW}px;margin:0 auto;`:""}">${inner}</svg>`;
+const txt=(x,y,s,size,fill,anchor)=>`<text x="${x}" y="${y}" font-size="${size}" fill="${fill}" text-anchor="${anchor||"start"}" style="font-family:${MONO}">${s}</text>`;
+const ct=n=>`<span class="ctype">${n}</span>`;
+
+/* Animation primitives. Each returns final-state markup plus the data
+   needed to replay it from zero, so a static render is always correct
+   and motion is purely additive. */
+function arcA(i,o,cr,a0,a1,fill,op,delay,extra){
+  const g=d3.arc().innerRadius(i).outerRadius(o).cornerRadius(cr);
+  return `<path class="anim-arc" data-i="${i}" data-o="${o}" data-cr="${cr}" data-a0="${a0}" data-a1="${a1}"
+    data-delay="${delay||0}" ${extra||""} d="${g({startAngle:a0,endAngle:a1})}" fill="${fill}" opacity="${op}"/>`;
+}
+function rectA(x,y,w,h,rx,fill,op,delay,dir){
+  return `<rect class="anim-bar" data-x="${x}" data-y="${y}" data-w="${w}" data-h="${h}" data-dir="${dir||"up"}"
+    data-delay="${delay||0}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" opacity="${op}"/>`;
+}
+const numT=(x,y,v,size,fill,anchor,dec)=>`<text class="anim-num" data-to="${v}" data-dec="${dec||0}" x="${x}" y="${y}"
+  font-size="${size}" fill="${fill}" text-anchor="${anchor||"start"}" style="font-family:${MONO}">${v}</text>`;
+
+function personaRing(p,size=150){
+  const r=size/2-12,arc=d3.arc().cornerRadius(5);
+  const track=arc.innerRadius(r-9).outerRadius(r)({startAngle:0,endAngle:2*Math.PI});
+  const col=band(p.health);
+  const ticks=d3.range(24).map(i=>`<line x1="0" y1="${-(r+4)}" x2="0" y2="${-(r+7)}" stroke="${C.line}" stroke-width="1" transform="rotate(${i*15})"/>`).join("");
+  return svgFluid(size,size,`<g transform="translate(${size/2},${size/2})">
+      <circle class="ring-plate" r="${r-20}" fill="${C.plate}"/>
+      <path d="${track}" fill="${C.lineSoft}"/>
+      ${arcA(r-9,r,5,0,2*Math.PI*(p.health/100),col,.92,60)}
+      ${arcA(r-17,r-12,5,0,2*Math.PI*p.underPct,C.bad,.55,320)}${ticks}
+      <g transform="translate(-20,-24)">${avatar(p.id,40,C.dim,"ring-avatar")}</g>
+      ${numT(0,28,Math.round(p.health),17,col,"middle")}</g>`,size);
+}
+function pillarGauge(pillars,size=200){
+  const keys=[["prov","PROV"],["perf","PERF"],["comp","COMP"],["exp","EXPR"],["sup","SUPP"]];
+  const r=size/2-6,arc=d3.arc().cornerRadius(3),a0=-Math.PI*.75,a1=Math.PI*.75;
+  const g=keys.map(([k,l],i)=>{const v=pillars[k],inner=r-16-i*16,outer=r-3-i*16;
+    return `<path d="${arc.innerRadius(inner).outerRadius(outer)({startAngle:a0,endAngle:a1})}" fill="${C.lineSoft}"/>
+      ${arcA(inner,outer,3,a0,a0+(a1-a0)*(v/100),band(v),.9,80+i*110)}
+      ${txt(-(outer+2),outer*.72,l,8.5,C.faint,"end")}`;}).join("");
+  return svgFluid(size,size,`<g transform="translate(${size/2},${size/2})">${g}${txt(0,36,"WEIGHTED",9,C.faint,"middle")}</g>`,size);
+}
+function baselineHistogram(devices,field,baseValue,label,unit,w=340,h=150){
+  const values=devices.map(d=>d[field]);
+  const cats=Array.from(new Set(values)).sort((a,b)=>a-b);
+  const counts=cats.map(c=>({c,n:values.filter(v=>v===c).length}));
+  const m={t:16,r:10,b:28,l:30};
+  const x=d3.scaleBand().domain(cats).range([m.l,w-m.r]).padding(.3);
+  const y=d3.scaleLinear().domain([0,d3.max(counts,d=>d.n)||1]).nice().range([h-m.b,m.t]);
+  const grid=y.ticks(3).map(t=>`<line x1="${m.l}" x2="${w-m.r}" y1="${y(t)}" y2="${y(t)}" stroke="${C.lineSoft}"/>${txt(m.l-6,y(t)+3,t,9,C.faint,"end")}`).join("");
+  const bars=counts.map((d,i)=>{const ok=d.c>=baseValue;return `
+    ${rectA(x(d.c),y(d.n),x.bandwidth(),h-m.b-y(d.n),3,ok?C.good:C.bad,ok?.8:.65,i*70)}
+    ${txt(x(d.c)+x.bandwidth()/2,h-m.b+13,d.c>=1024?(d.c/1024)+"T":d.c,9,ok?C.dim:C.bad,"middle")}`;}).join("");
+  const bcat=cats.find(c=>c>=baseValue),bx=bcat!==undefined?x(bcat)-5:undefined;
+  const bl=bx===undefined?"":`<line x1="${bx}" x2="${bx}" y1="${m.t-8}" y2="${h-m.b}" stroke="${C.accent}" stroke-width="1.4" stroke-dasharray="3 3"/>${txt(bx+3,m.t-2,"baseline "+(baseValue>=1024?(baseValue/1024)+"TB":baseValue+unit),9,C.accent)}`;
+  return svgFluid(w,h,`${grid}${bars}${bl}${txt(m.l,h-2,label,9,C.faint)}`);
+}
+function binHistogram(values,thresholds,labelFn,colorFn,label,w=340,h=150){
+  const bins=d3.bin().thresholds(thresholds)(values);
+  const m={t:14,r:10,b:28,l:30};
+  const x=d3.scaleBand().domain(bins.map((b,i)=>i)).range([m.l,w-m.r]).padding(.22);
+  const y=d3.scaleLinear().domain([0,d3.max(bins,b=>b.length)||1]).nice().range([h-m.b,m.t]);
+  const grid=y.ticks(3).map(t=>`<line x1="${m.l}" x2="${w-m.r}" y1="${y(t)}" y2="${y(t)}" stroke="${C.lineSoft}"/>${txt(m.l-6,y(t)+3,t,9,C.faint,"end")}`).join("");
+  const bars=bins.map((b,i)=>`${rectA(x(i),y(b.length),x.bandwidth(),h-m.b-y(b.length),3,colorFn(b),.85,i*70)}
+    ${txt(x(i)+x.bandwidth()/2,h-m.b+13,labelFn(b),9,C.faint,"middle")}`).join("");
+  return svgFluid(w,h,`${grid}${bars}${txt(m.l,h-2,label,9,C.faint)}`);
+}
+function scatter(devices,b,w=340,h=190){
+  const m={t:14,r:12,b:30,l:36};
+  const x=d3.scaleLinear().domain([0,d3.max(devices,d=>d.bootSec)*1.05]).range([m.l,w-m.r]);
+  const y=d3.scaleLinear().domain([0,70]).range([h-m.b,m.t]);
+  const r=d3.scaleSqrt().domain([0,d3.max(devices,d=>d.crashes)||1]).range([2.5,7]);
+  const grid=y.ticks(4).map(t=>`<line x1="${m.l}" x2="${w-m.r}" y1="${y(t)}" y2="${y(t)}" stroke="${C.lineSoft}"/>${txt(m.l-6,y(t)+3,t+"%",9,C.faint,"end")}`).join("")
+    + x.ticks(4).map(t=>txt(x(t),h-m.b+13,t+"s",9,C.faint,"middle")).join("");
+  const zoneX=`<rect x="${x(b.bootSec)}" y="${m.t}" width="${Math.max(0,w-m.r-x(b.bootSec))}" height="${h-m.b-m.t}" fill="${C.bad}" opacity=".055"/>`;
+  const zoneY=`<rect x="${m.l}" y="${y(b.freePct)}" width="${w-m.r-m.l}" height="${Math.max(0,h-m.b-y(b.freePct))}" fill="${C.bad}" opacity=".055"/>`;
+  const lines=`<line x1="${x(b.bootSec)}" x2="${x(b.bootSec)}" y1="${m.t}" y2="${h-m.b}" stroke="${C.accent}" stroke-width="1.2" stroke-dasharray="3 3"/>
+    <line x1="${m.l}" x2="${w-m.r}" y1="${y(b.freePct)}" y2="${y(b.freePct)}" stroke="${C.accent}" stroke-width="1.2" stroke-dasharray="3 3"/>`;
+  const pts=devices.map(d=>{const bad=d.bootSec>b.bootSec||d.freePct<b.freePct;
+    return `<circle class="anim-dot" data-r="${r(d.crashes)}" cx="${x(d.bootSec)}" cy="${y(Math.min(d.freePct,70))}" r="${r(d.crashes)}" fill="${bad?C.bad:C.good}" opacity=".68"/>`;}).join("");
+  return svgFluid(w,h,`${zoneX}${zoneY}${grid}${lines}${pts}${txt(m.l,h-2,"BOOT TIME → · FREE DISK ↑ · SIZE = CRASHES",8.5,C.faint)}`);
+}
+function stackedAge(tickets,w=340,h=170){
+  const buckets=[["0-7",0,7],["8-14",8,14],["15-21",15,21],["22+",22,999]];
+  const prios=["P1","P2","P3","P4"];
+  const colors={P1:C.bad,P2:C.warn,P3:C.accent,P4:C.cyan};
+  const data=buckets.map(([l,lo,hi])=>{const rows=tickets.filter(t=>t.ageDays>=lo&&t.ageDays<=hi);
+    return {l,vals:prios.map(p=>rows.filter(t=>t.priority===p).length),total:rows.length};});
+  const m={t:14,r:10,b:30,l:30};
+  const x=d3.scaleBand().domain(data.map(d=>d.l)).range([m.l,w-m.r]).padding(.32);
+  const y=d3.scaleLinear().domain([0,d3.max(data,d=>d.total)||1]).nice().range([h-m.b,m.t]);
+  const grid=y.ticks(3).map(t=>`<line x1="${m.l}" x2="${w-m.r}" y1="${y(t)}" y2="${y(t)}" stroke="${C.lineSoft}"/>${txt(m.l-6,y(t)+3,t,9,C.faint,"end")}`).join("");
+  const bars=data.map((d,bi)=>{let acc=0;
+    return d.vals.map((v,i)=>{const yy=y(acc+v),hh=y(acc)-y(acc+v);acc+=v;
+      return v?rectA(x(d.l),yy,x.bandwidth(),hh,0,colors[prios[i]],.85,bi*90+i*40):"";}).join("")
+      +txt(x(d.l)+x.bandwidth()/2,h-m.b+13,d.l+"d",9,C.faint,"middle");}).join("");
+  const key=prios.map((p,i)=>`<rect x="${m.l+i*44}" y="${h-13}" width="8" height="8" rx="2" fill="${colors[p]}"/>${txt(m.l+i*44+12,h-6,p,9,C.faint)}`).join("");
+  return svgFluid(w,h,`${grid}${bars}${key}`);
+}
+function complianceBySite(devices,w=340,h=170){
+  const sites=Array.from(new Set(devices.map(d=>d.site)));
+  const data=sites.map(s=>{const rows=devices.filter(d=>d.site===s);
+    return {s,total:rows.length,ok:rows.filter(d=>d.patched).length};})
+    .sort((a,b)=>b.total-a.total).slice(0,6);
+  const m={t:12,r:34,b:16,l:74};
+  const y=d3.scaleBand().domain(data.map(d=>d.s)).range([m.t,h-m.b]).padding(.34);
+  const x=d3.scaleLinear().domain([0,d3.max(data,d=>d.total)||1]).range([m.l,w-m.r]);
+  const rows=data.map((d,i)=>{const pct=Math.round(d.ok/d.total*100);
+    return `${txt(m.l-7,y(d.s)+y.bandwidth()/2+3,d.s.length>10?d.s.slice(0,10)+"…":d.s,9.5,C.dim,"end")}
+      <rect x="${m.l}" y="${y(d.s)}" width="${x(d.total)-m.l}" height="${y.bandwidth()}" rx="3" fill="${C.lineSoft}"/>
+      ${rectA(m.l,y(d.s),x(d.ok)-m.l,y.bandwidth(),3,pct>=90?C.good:pct>=75?C.warn:C.bad,.85,i*80,"right")}
+      ${txt(w-m.r+4,y(d.s)+y.bandwidth()/2+3,pct+"%",9,pct>=90?C.good:pct>=75?C.warn:C.bad)}`;}).join("");
+  return svgFluid(w,h,rows);
+}
+function ticketDonut(data,active,size=190){
+  const r=size/2-6,cc=catColor();
+  const pie=d3.pie().value(d=>d.n).sort(null).padAngle(.02);
+  const arc=d3.arc().innerRadius(r-24).outerRadius(r).cornerRadius(4);
+  const slices=pie(data).map((a,i)=>arcA(r-24,r,4,a.startAngle,a.endAngle,cc(a.data.cat),
+    !active||active===a.data.cat?.92:.25,i*70,`data-act="cat" data-cat="${a.data.cat}"`)).join("");
+  return svgFluid(size,size,`<g transform="translate(${size/2},${size/2})">${slices}
+    ${numT(0,-2,d3.sum(data,d=>d.n),22,C.text,"middle")}${txt(0,15,"TICKETS",8.5,C.faint,"middle")}</g>`,size);
+}
+
+
+
+const catColorT=()=>d3.scaleOrdinal().domain(TICKET_CATS.concat(CATALOG))
+  .range([C.bad,C.warn,C.accent,C.cyan,C.good,C.fresh,"#E0A458","#5AD1C8","#C4649B","#6E7BF2","#22A57F","#9B5FE0","#D98429","#2FA9C9"]);
+function ticketDonutT(rows,size=190){
+  const total=d3.sum(rows,r=>r.n)||1,r=size/2-6,cc=catColorT();
+  const pie=d3.pie().value(d=>d.n).sort(null).padAngle(.015);
+  const sl=pie(rows).map((a,i)=>arcA(r-26,r,4,a.startAngle,a.endAngle,cc(a.data.k),
+    !state.tcat||state.tcat===a.data.k?.92:.22,i*55,`data-act="tcat" data-cat="${a.data.k}"`)).join("");
+  return svgFluid(size,size,`<g transform="translate(${size/2},${size/2})">${sl}
+    ${numT(0,-2,total,20,C.text,"middle")}${txt(0,15,"TICKETS",8.5,C.faint,"middle")}</g>`,size);
+}
+
+/* Weekly volume bars used by the Tickets page. */
+function weekBars(series,color,w=560,h=150){
+  const m={t:14,r:10,b:28,l:32};
+  const x=d3.scaleBand().domain(d3.range(series.length)).range([m.l,w-m.r]).padding(.26);
+  const y=d3.scaleLinear().domain([0,d3.max(series)||1]).nice().range([h-m.b,m.t]);
+  const grid=y.ticks(3).map(t=>`<line x1="${m.l}" x2="${w-m.r}" y1="${y(t)}" y2="${y(t)}" stroke="${C.lineSoft}"/>${txt(m.l-6,y(t)+3,t,9,C.faint,"end")}`).join("");
+  const bars=series.map((v,i)=>`${rectA(x(i),y(v),x.bandwidth(),h-m.b-y(v),3,color,.85,i*45)}
+    ${i%2===0?txt(x(i)+x.bandwidth()/2,h-m.b+13,(series.length-i)+"w",9,C.faint,"middle"):""}`).join("");
+  return svgFluid(w,h,`${grid}${bars}${txt(m.l,h-2,"WEEKS AGO → NOW",8.5,C.faint)}`);
+}
+
+/* Persona-coloured donut used by the Confidence & review screen. */
+function personaDonut(rows,label,size=200,active){
+  const total=d3.sum(rows,r=>r.n)||1,r=size/2-6;
+  const pie=d3.pie().value(d=>d.n).sort(null).padAngle(.015);
+  const slices=pie(rows).map((a,i)=>arcA(r-26,r,4,a.startAngle,a.endAngle,HUE[a.data.k]||C.accent,
+    !active||active===a.data.k?.92:.22,i*60,`data-act="cpersona" data-id="${a.data.k}"`)).join("");
+  return svgFluid(size,size,`<g transform="translate(${size/2},${size/2})">${slices}
+    ${numT(0,-2,total,20,C.text,"middle")}${txt(0,15,label,8.5,C.faint,"middle")}</g>`,size);
+}
+function donutLegend(rows,active){
+  const total=d3.sum(rows,r=>r.n)||1;
+  return rows.map(r=>{const p=PERSONA_DEFS.find(x=>x.id===r.k);
+    return `<button data-act="cpersona" data-id="${r.k}" style="display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;padding:4px 0;width:100%;opacity:${!active||active===r.k?1:.4}">
+      <i class="dot" style="background:${HUE[r.k]}"></i>
+      <span class="truncate" style="font-size:11.5px;color:var(--dim)">${p?p.name:r.k}</span>
+      <span class="m" style="font-size:11.5px;color:var(--text);margin-left:auto">${r.n.toLocaleString()}</span>
+      <span class="m" style="font-size:10.5px;color:var(--faint);width:46px;text-align:right">${(r.n/total*100).toFixed(2)}%</span></button>`;}).join("");
+}
+function trendArea(series,color,w=340,h=120){
+  const m={t:10,r:8,b:18,l:26};
+  const x=d3.scaleLinear().domain([0,series.length-1]).range([m.l,w-m.r]);
+  const y=d3.scaleLinear().domain([d3.min(series)-6,100]).range([h-m.b,m.t]);
+  const line=d3.line().x((d,i)=>x(i)).y(d=>y(d)).curve(d3.curveMonotoneX);
+  const area=d3.area().x((d,i)=>x(i)).y0(h-m.b).y1(d=>y(d)).curve(d3.curveMonotoneX);
+  const gid="tg"+Math.random().toString(36).slice(2,7);
+  const labels=["12w","8w","4w","now"].map((t,i)=>txt(x(i*(series.length-1)/3),h-4,t,9,C.faint,"middle")).join("");
+  return svgFluid(w,h,`<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="${color}" stop-opacity=".35"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
+    <path class="anim-fade" d="${area(series)}" fill="url(#${gid})"/>
+    <path class="anim-line" d="${line(series)}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+    <circle class="anim-dot" data-r="3.5" cx="${x(series.length-1)}" cy="${y(series[series.length-1])}" r="3.5" fill="${color}"/>${labels}`);
+}
+function bullet(label,actual,target,max,unit,invert,ic){
+  const w=190,x=d3.scaleLinear().domain([0,max]).range([0,w]);
+  const ok=invert?actual<=target:actual>=target;
+  return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+    <div style="width:112px;display:flex;align-items:center;gap:7px;color:var(--dim);font-size:12px;flex-shrink:0">${icon(ic,13)}${label}</div>
+    <svg viewBox="0 0 ${w} 26" preserveAspectRatio="none" style="flex:1;height:26px;min-width:60px">
+      <rect y="8" width="${w}" height="10" rx="5" fill="${C.lineSoft}"/>
+      ${rectA(0,8,Math.max(3,x(Math.min(actual,max))),10,5,ok?C.good:C.bad,.9,120,"right")}
+      <line x1="${x(Math.min(target,max))}" x2="${x(Math.min(target,max))}" y1="4" y2="22" stroke="${C.accent}" stroke-width="2"/></svg>
+    <div class="m" style="font-size:12px;color:${ok?C.good:C.bad};width:88px;text-align:right;flex-shrink:0">${actual}${unit} <span style="color:var(--faint)">/ ${target}${unit}</span></div></div>`;
+}
+function barList(rows,color){
+  const max=d3.max(rows,r=>r.n)||1;
+  return rows.map(r=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
+    <div class="truncate" style="width:110px;font-size:11.5px;color:var(--dim);flex-shrink:0">${r.k}</div>
+    <div class="bar-track"><div class="bar-fill" data-w="${r.n/max*100}" style="width:${r.n/max*100}%;background:${color}"></div></div>
+    <div class="m" style="font-size:11px;color:var(--faint);width:24px;text-align:right;flex-shrink:0">${r.n}</div></div>`).join("");
+}
+function migrationFlow(w=600,h=290){
+  const rows=MIGRATIONS;
+  const L1=Array.from(new Set(rows.map(r=>r.from))),R1=Array.from(new Set(rows.map(r=>r.to)));
+  const pos=l=>{const g=(h-40)/l.length,o={};l.forEach((id,i)=>o[id]=30+g*i+g/2-20);return o;};
+  const L=pos(L1),R=pos(R1),tF={},tT={};
+  L1.forEach(id=>tF[id]=d3.sum(rows.filter(r=>r.from===id),r=>r.people));
+  R1.forEach(id=>tT[id]=d3.sum(rows.filter(r=>r.to===id),r=>r.people));
+  const wS=d3.scaleLinear().domain([0,d3.max(rows,r=>r.people)]).range([2,18]);
+  const x0=126,x1=w-126,def=id=>PERSONA_DEFS.find(p=>p.id===id);
+  const rib=rows.map(r=>{const y0=L[r.from]+20,y1=R[r.to]+20;
+    return `<path class="anim-line" d="M${x0},${y0} C${(x0+x1)/2},${y0} ${(x0+x1)/2},${y1} ${x1},${y1}" fill="none" stroke="${def(r.to).hue}" stroke-width="${wS(r.people)}" opacity=".5"/>`;}).join("");
+  const node=(ids,map,x,side)=>ids.map(id=>{const p=def(id);return `<g transform="translate(${x},${map[id]})">
+    <rect width="120" height="40" rx="8" fill="${C.panel2}" stroke="${C.line}"/>
+    <g transform="translate(7,6)">${avatar(id,28,p.hue)}</g>
+    <text x="41" y="18" font-size="10.5" fill="${C.text}" style="font-family:var(--sans)">${p.name}</text>
+    ${txt(41,31,(side==="r"?"+"+tT[id]:"−"+tF[id])+" people",9.5,side==="r"?C.good:C.faint)}</g>`;}).join("");
+  return svgFluid(w,h,`${rib}${node(L1,L,4,"l")}${node(R1,R,w-124,"r")}`);
+}
+
+/* ------------------------- SMALL BUILDERS ----------------------- */
+const stat=(v,l,tone)=>{
+  const s=String(v),mt=s.match(/^([+\-]?)([\d,]+(?:\.\d+)?)(.*)$/);
+  let inner=s;
+  if(mt){const num=parseFloat(mt[2].replace(/,/g,"")),dec=(mt[2].split(".")[1]||"").length;
+    inner=`<span class="anim-num" data-to="${num}" data-dec="${dec}" data-pre="${mt[1]}" data-suf="${mt[3]}">${s}</span>`;}
+  return `<div><div class="stat-v" style="color:${tone||C.text}">${inner}</div><div class="eyebrow" style="margin-top:6px">${l}</div></div>`;};
+const kpi=(v,l,tone)=>`<div class="statbox">${stat(v,l,tone)}</div>`;
+const panel=(inner,style,pad)=>`<div class="panel" style="${pad!==undefined?`padding:${pad}px;`:""}${style||""}">${inner}</div>`;
+const sect=t=>`<div class="sect">${t}</div>`;
+const pageHead=(step,title,sub,tools)=>`<div class="pagehead">
+  <div><div class="step">${step}</div><h2>${title}</h2><div class="sub">${sub}</div></div>
+  <div class="pagetools">${tools||""}</div></div>`;
+const tally=(arr,k)=>{const m={};arr.forEach(d=>m[d[k]]=(m[d[k]]||0)+1);
+  return Object.keys(m).map(x=>({k:x,n:m[x]})).sort((a,b)=>b.n-a.n);};
+
+/* ============================= STATE ============================ */
+const state={view:"landing",pid:null,did:null,filter:"all",cat:null,q:"",
+  cpid:"all",cband:null,cq:"",tmode:"inc",tpid:"all",tcat:null,
+  baselines:JSON.parse(JSON.stringify(DEFAULT_BASELINE)),baseFocus:null,raised:null,theme:"midnight",
+  motion:!(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches),types:false,
+  tour:false,tourStep:0,tourPaused:false,tourCaptions:true,
+  swUser:"",swTo:"",swDone:null,switches:[],xmsg:null,xbad:false,xsrc:false};
+let model=buildModel(state.baselines);
+const P=()=>model.find(x=>x.id===state.pid);
+const D=()=>{const p=P();return p&&state.did?p.devices.find(x=>x.id===state.did):null;};
+
+/* ============================ SCREENS =========================== */
+function screenLanding(){
+  const shown=model.filter(p=>state.filter==="risk"?p.health<85:true);
+  const chips=[["all","All personas"],["risk","Needs attention"]]
+    .map(([k,t])=>`<button class="chip ${state.filter===k?"on":""}" data-act="filter" data-k="${k}">${t}</button>`).join("");
+  const cards=shown.map(p=>`<button class="ring-card" data-act="persona" data-id="${p.id}">
+      ${personaRing(p)}
+      <div style="margin-top:12px;text-align:center">
+        <div class="ring-name">${p.name}</div>
+        <div class="ring-sub">${p.sub}</div>
+        <div class="ring-meta"><span class="m" style="color:var(--dim)">${p.count.toLocaleString()}</span> devices ·
+          <span class="m" style="color:${C.bad}">${Math.round(p.underPct*100)}%</span> below baseline<br>
+          <span class="m" style="color:${C.warn}">${p.openTickets.toLocaleString()}</span> open tickets</div>
+      </div></button>`).join("");
+  return `
+  ${pageHead("01 · WHO","Personas",
+    "Seven personas, every device in the fleet, and the job titles that put people into them. Everything downstream starts here.",chips)}
+  <div class="g4" style="margin-bottom:18px">
+    ${kpi(model.length,"Personas")}
+    ${kpi(d3.sum(model,p=>p.count).toLocaleString(),"Devices in estate")}
+    ${kpi(d3.sum(model,p=>p.underCount).toLocaleString(),"Under baseline",C.bad)}
+    ${kpi(d3.sum(model,p=>p.openTickets).toLocaleString(),"Open tickets",C.warn)}</div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <div class="eyebrow">Persona health${ct("RADIAL GAUGE GRID")}</div>
+    <span style="margin-left:auto;font-size:11px;color:var(--faint)">Click any persona for its full page</span></div>
+  <div class="personas">${cards}</div>
+  <div style="margin-top:22px;display:flex;gap:18px;align-items:center;color:var(--faint);font-size:11px;flex-wrap:wrap">
+    <span style="display:flex;align-items:center;gap:6px"><i class="dot" style="background:${C.good}"></i>Outer ring — persona health</span>
+    <span style="display:flex;align-items:center;gap:6px"><i class="dot" style="background:${C.bad}"></i>Inner ring — share below baseline</span></div>
+  ${confidenceBlock()}`;
+}
+
+/* ------------------- CONFIDENCE & REVIEW (new) ------------------- */
+function confidenceRows(){
+  return state.cpid==="all"?TITLE_ROWS:TITLE_ROWS.filter(r=>r.pid===state.cpid);
+}
+function reviewTable(){
+  const band=state.cband;
+  let rows=confidenceRows().filter(r=>band?confBand(r.conf)===band:r.conf<100);
+  if(state.cq)rows=rows.filter(r=>(r.t+r.dept).toLowerCase().includes(state.cq.toLowerCase()));
+  rows=rows.sort((a,b)=>a.conf-b.conf).slice(0,150);
+  if(!rows.length)return `<tr><td colspan="5" class="l" style="padding:26px;color:var(--faint)">Nothing to review in this selection.</td></tr>`;
+  return rows.map(r=>{const p=PERSONA_DEFS.find(x=>x.id===r.pid),tone=r.conf>=100?C.good:r.conf>=50?C.warn:C.bad;
+    return `<tr data-act="cpersona" data-id="${r.pid}">
+      <td class="l">${r.t}</td>
+      <td class="l" style="color:var(--dim)">${r.dept}</td>
+      <td class="l"><span style="display:inline-flex;align-items:center;gap:8px">${avatar(r.pid,20,p.hue)}${p.name}</span></td>
+      <td class="m" style="color:${tone}">${r.conf}%</td>
+      <td class="l" style="color:var(--faint)">${r.why||"—"}</td></tr>`;}).join("");
+}
+function confidenceBlock(){
+  const rows=confidenceRows();
+  const avg=d3.mean(rows,r=>r.conf)||0;
+  const n100=rows.filter(r=>r.conf>=100).length;
+  const n50=rows.filter(r=>r.conf>=50&&r.conf<100).length;
+  const nLow=rows.filter(r=>r.conf<50).length;
+  const distinctTitles=new Set(rows.map(r=>r.t)).size;
+  const personaIds=Array.from(new Set(rows.map(r=>r.pid)));
+  const names=personaIds.map(id=>PERSONA_DEFS.find(p=>p.id===id).name).join(" · ");
+  const byPersona=PERSONA_DEFS.map(p=>({k:p.id,n:rows.filter(r=>r.pid===p.id).length})).filter(d=>d.n);
+  const byDept=byPersona.map(d=>({k:d.k,n:new Set(rows.filter(r=>r.pid===d.k).map(r=>r.dept+"|"+r.t)).size}));
+  const opts=[`<option value="all" ${state.cpid==="all"?"selected":""}>All</option>`]
+    .concat(PERSONA_DEFS.map(p=>`<option value="${p.id}" ${state.cpid===p.id?"selected":""}>${p.name}</option>`)).join("");
+  const counts={"100":n100,"50":n50,"low":nLow};
+  const bandTiles=CBANDS.map(([k,title,sub,tone])=>`
+    <button class="statbox" data-act="cband" data-k="${k}" style="text-align:left;cursor:pointer;width:100%;
+      border-color:${state.cband===k?C[tone]:"var(--line)"};background:${state.cband===k?"var(--hover)":"var(--panel)"}">
+      <div class="eyebrow" style="margin-bottom:8px">${title}</div>
+      <div class="stat-v" style="color:${C[tone]}"><span class="anim-num" data-to="${counts[k]}" data-dec="0">${counts[k].toLocaleString()}</span></div>
+      <div style="font-size:11.5px;color:var(--dim);margin-top:7px">${sub}</div></button>`).join("");
+
+  return `
+  ${sect("How people were put into these personas")}
+  <div style="display:flex;align-items:center;gap:10px;margin:-2px 0 14px;flex-wrap:wrap">
+    <div style="font-size:12px;color:var(--dim);max-width:620px;line-height:1.5">Every job title in the HR feed is mapped to one persona, and each mapping carries a confidence score. A weak mapping puts the wrong baseline on a real device.</div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+      <span class="eyebrow">Persona</span>
+      <select class="theme-sel" id="cpsel">${opts}</select>
+      ${state.cband?`<button class="chip on" data-act="cband" data-k="${state.cband}">Clear band filter ✕</button>`:""}
+    </div></div>
+
+  <div class="g3" style="margin-bottom:16px">
+    ${kpi(avg.toFixed(2),"Avg confidence %",C.accent)}
+    ${kpi(distinctTitles.toLocaleString(),"Distinct job titles")}
+    ${kpi(rows.length.toLocaleString(),"Titles mapped in scope")}</div>
+
+  <div class="g3" style="margin-bottom:16px">${bandTiles}</div>
+
+  <div class="g2">
+    ${panel(`<div class="eyebrow" style="margin-bottom:8px">Count of job title by persona${ct("DONUT")}</div>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        <div style="width:190px;flex-shrink:0">${personaDonut(byPersona,"TITLES",190,state.cpid==="all"?null:state.cpid)}</div>
+        <div style="flex:1;min-width:210px">${donutLegend(byPersona,state.cpid==="all"?null:state.cpid)}</div></div>`)}
+    ${panel(`<div class="eyebrow" style="margin-bottom:8px">Count of department by persona${ct("DONUT")}</div>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        <div style="width:190px;flex-shrink:0">${personaDonut(byDept,"DEPTS",190,state.cpid==="all"?null:state.cpid)}</div>
+        <div style="flex:1;min-width:210px">${donutLegend(byDept,state.cpid==="all"?null:state.cpid)}</div></div>`)}
+  </div>
+
+  ${sect(state.cband?"Job titles in the selected band":"Job titles worth a second look")}
+  ${panel(`<div style="display:flex;align-items:center;gap:10px;padding:12px;flex-wrap:wrap">
+      <div style="font-size:11.5px;color:var(--faint)">Lowest confidence first · first 150 rows</div>
+      <div class="search" style="margin-left:auto">${icon("search",13,C.faint)}
+        <input id="csearch" placeholder="job title or department" value="${state.cq}"/></div></div>
+    <div class="tscroll"><table><thead><tr>
+      <th class="l">Job title</th><th class="l">Department</th><th class="l">Mapped persona</th>
+      <th>Confidence</th><th class="l">Why it was flagged</th></tr></thead>
+      <tbody id="cbody">${reviewTable()}</tbody></table></div>`,"",0)}
+  <div style="margin-top:14px;font-size:11.5px;color:var(--faint)">Click a confidence band to filter the list. 100% titles need no review; anything under 50% should be re-mapped before it drives a baseline.</div>`;
+}
+
+/* ------------------------ TICKETS (new) ------------------------- */
+function ticketSet(){return state.tmode==="inc"?INCIDENTS:REQUESTS;}
+function ticketRows(){
+  let r=ticketSet();
+  if(state.tpid!=="all")r=r.filter(t=>t.pid===state.tpid);
+  if(state.tcat)r=r.filter(t=>t.cat===state.tcat);
+  return r;
+}
+function ticketBaseline(pid){return state.baselines[pid].ticketsPer100/100;}
+function ticketStatus(v,b){return v<=b?["Within baseline",C.good]:v<=b*1.5?["Near baseline",C.warn]:["Over baseline",C.bad];}
+function personaTicketRows(){
+  const set=ticketSet();
+  return model.map(p=>{
+    const rows=set.filter(t=>t.pid===p.id),per=rows.length/p.count,b=ticketBaseline(p.id);
+    const st=ticketStatus(per,b);
+    return {id:p.id,name:p.name,hue:p.hue,users:p.count,n:rows.length,per,b,
+      variance:per-b,status:st[0],tone:st[1],baseline:p.baseline,
+      open:rows.filter(t=>t.open).length,sla:rows.filter(t=>t.sla).length};
+  });
+}
+function ticketSummaryTable(){
+  const rows=personaTicketRows().sort((a,b)=>b.variance-a.variance);
+  const maxV=d3.max(rows,r=>Math.abs(r.variance))||1;
+  return rows.map(r=>{
+    const w=Math.round(Math.abs(r.variance)/maxV*46),pos=r.variance>0;
+    return `<tr data-act="persona" data-id="${r.id}">
+      <td class="l"><span style="display:inline-flex;align-items:center;gap:8px">${avatar(r.id,20,r.hue)}${r.name}</span></td>
+      <td class="l m" style="color:var(--dim)">${cpuTier(r.baseline.cpuScore).replace("Intel Core ","")}</td>
+      <td class="m" style="color:var(--dim)">${r.baseline.ramGB}</td>
+      <td class="m" style="color:var(--dim)">${gb(r.baseline.storageGB)}</td>
+      <td class="m">${r.n.toLocaleString()}</td>
+      <td class="m" style="color:${r.tone}">${r.per.toFixed(2)}</td>
+      <td class="m" style="color:var(--faint)">${r.b.toFixed(2)}</td>
+      <td><div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
+        <div style="width:50px;display:flex;justify-content:${pos?"flex-start":"flex-end"}">
+          <div style="height:11px;width:${Math.max(3,w)}px;border-radius:2px;background:${pos?C.bad:C.good}"></div></div>
+        <span class="m" style="color:${pos?C.bad:C.good};width:44px;text-align:right">${pos?"+":""}${r.variance.toFixed(2)}</span></div></td>
+      <td class="l"><span class="m" style="font-size:10px;padding:3px 7px;border-radius:4px;border:1px solid ${r.tone};color:${r.tone}">${r.status}</span></td>
+      <td class="l"><span class="link">${icon("chevron",11)} Investigate</span></td></tr>`;}).join("");
+}
+function screenTickets(){
+  const rows=ticketRows(),set=ticketSet();
+  const scope=state.tpid==="all"?model:model.filter(p=>p.id===state.tpid);
+  const users=d3.sum(scope,p=>p.count);
+  const per=users?rows.length/users:0;
+  const avgBase=d3.mean(scope,p=>ticketBaseline(p.id))||0;
+  const pRows=personaTicketRows().filter(r=>state.tpid==="all"||r.id===state.tpid);
+  const over=pRows.filter(r=>r.variance>r.b*.5).length;
+  const worst=d3.max(pRows,r=>r.variance)||0;
+  const uniq=new Set(rows.map(t=>t.uid)).size;
+  const openN=rows.filter(t=>t.open).length,slaN=rows.filter(t=>t.sla).length;
+  const byCat=tally(rows,"cat");
+  const topItem=byCat.length?byCat[0].k:"—";
+  const weeks=d3.range(12).map(w=>rows.filter(t=>t.week===11-w).length);
+  const modeSw=TMODES.map(([k,l,sub])=>`<button class="chip ${state.tmode===k?"on":""}" data-act="tmode" data-k="${k}"
+    style="padding:9px 14px">${l}</button>`).join("");
+  const opts=[`<option value="all" ${state.tpid==="all"?"selected":""}>All</option>`]
+    .concat(PERSONA_DEFS.map(p=>`<option value="${p.id}" ${state.tpid===p.id?"selected":""}>${p.name}</option>`)).join("");
+  const catRows=byCat.map(d=>`<button data-act="tcat" data-cat="${d.k}" style="display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;padding:4px 0;width:100%;opacity:${!state.tcat||state.tcat===d.k?1:.4}">
+      <i class="dot" style="background:${catColorT()(d.k)}"></i>
+      <span class="truncate" style="font-size:11.5px;color:var(--dim)">${d.k}</span>
+      <span class="m" style="font-size:11.5px;color:var(--text);margin-left:auto">${d.n.toLocaleString()}</span>
+      <span class="m" style="font-size:10.5px;color:var(--faint);width:48px;text-align:right">${(d.n/(rows.length||1)*100).toFixed(1)}%</span></button>`).join("");
+  const label=state.tmode==="inc"?"incidents":"requests";
+
+  return `
+  ${pageHead("03 · WHAT IT COSTS","Tickets",
+    state.tmode==="inc"
+      ?"Incidents raised against the fleet, graded per user against each persona's ticket ceiling. A persona over its ceiling on a strong device is a support problem, not a hardware one."
+      :"Service requests rather than faults. Repeated memory and storage requests are usually a baseline set too low.",
+    `<div style="display:flex;gap:6px">${modeSw}</div>
+     <span class="eyebrow">Persona</span><select class="theme-sel" id="tpsel">${opts}</select>
+     ${state.tcat?`<button class="chip on" data-act="tcat" data-cat="${state.tcat}">${state.tcat} ✕</button>`:""}`)}
+
+  <div class="g6" style="margin-bottom:16px">
+    ${kpi(rows.length.toLocaleString(),"Total "+label)}
+    ${kpi(uniq.toLocaleString(),"Unique requestors")}
+    ${kpi(per.toFixed(2),"Per user",ticketStatus(per,avgBase)[1])}
+    ${kpi(avgBase.toFixed(2),"Ticket baseline")}
+    ${kpi(over,"Personas over baseline",over?C.bad:C.good)}
+    ${kpi((worst>0?"+":"")+worst.toFixed(2),"Worst variance",worst>0?C.bad:C.good)}</div>
+
+  <div class="g4" style="margin-bottom:16px">
+    ${kpi(openN.toLocaleString(),"Still open",C.warn)}
+    ${kpi((rows.length-openN).toLocaleString(),state.tmode==="inc"?"Resolved or closed":"Fulfilled or rejected",C.good)}
+    ${kpi(slaN.toLocaleString(),"Past SLA age",slaN?C.bad:C.good)}
+    ${panel(`<div class="eyebrow">Top ${state.tmode==="inc"?"category":"catalog item"}</div>
+      <div class="truncate" style="font-size:20px;font-weight:650;margin-top:10px">${topItem}</div>
+      <div style="font-size:11.5px;color:var(--dim);margin-top:6px">${byCat.length?byCat[0].n.toLocaleString()+" of "+rows.length.toLocaleString():"—"}</div>`,"padding:14px 16px")}</div>
+
+  ${sect("Distribution")}
+  <div class="gmain">
+    ${panel(`<div class="eyebrow" style="margin-bottom:8px">${state.tmode==="inc"?"Ticket distribution by category":"Ticket distribution by catalog item"}${ct("DONUT")}</div>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        <div style="width:190px;flex-shrink:0">${ticketDonutT(byCat,190)}</div>
+        <div style="flex:1;min-width:220px">${catRows}</div></div>`)}
+    ${panel(`<div class="eyebrow" style="margin-bottom:4px">Top 10 departments by ticket${ct("RANKED BAR")}</div>
+      <div style="font-size:11.5px;color:var(--faint);margin-bottom:12px">Where the load actually lands.</div>
+      ${barList(tally(rows,"dept").slice(0,10),C.accent)}`)}
+  </div>
+
+  <div class="g2" style="margin-top:16px">
+    ${panel(`<div class="eyebrow" style="margin-bottom:6px">Volume by week${ct("COLUMN CHART")}</div>${weekBars(weeks,state.tmode==="inc"?C.warn:C.cyan)}`)}
+    ${panel(`<div class="eyebrow" style="margin-bottom:6px">Age and priority${ct("STACKED COLUMN")}</div>${stackedAge(rows)}
+      <div style="font-size:11px;color:var(--faint)">A tall right-hand bar means things are ageing, not arriving.</div>`)}
+  </div>
+
+  ${sect("Persona ticket health")}
+  ${panel(`<div class="tscroll"><table><thead><tr>
+      <th class="l">Persona</th><th class="l">CPU</th><th>RAM</th><th>SSD</th>
+      <th>Tickets</th><th>Per user</th><th>Baseline</th><th>Variance</th>
+      <th class="l">Baseline status</th><th class="l">Action</th></tr></thead>
+      <tbody>${ticketSummaryTable()}</tbody></table></div>`,"",0)}
+  <div style="margin-top:14px;font-size:11.5px;color:var(--faint)">Per user is tickets divided by devices in the persona. The baseline column is the ticket ceiling from the Baselines page — change it there and every row here re-grades.</div>`;
+}
+
+function screenMovement(){
+  const rows=model.slice().sort((a,b)=>(b.movedIn+b.movedOut)-(a.movedIn+a.movedOut)).map(p=>{
+    const net=p.movedIn-p.movedOut;
+    return `<tr data-act="persona" data-id="${p.id}">
+      <td class="l"><div style="display:flex;align-items:center;gap:10px">${avatar(p.id,24,p.hue)}<span>${p.name}</span></div></td>
+      <td class="m" style="color:${p.movedIn?C.good:C.faint}">${p.movedIn?"+"+p.movedIn:"—"}</td>
+      <td class="m" style="color:${p.movedOut?C.warn:C.faint}">${p.movedOut?"−"+p.movedOut:"—"}</td>
+      <td class="m" style="color:${net>0?C.good:net<0?C.warn:C.faint}">${net>0?"+"+net:net||"—"}</td>
+      <td class="m" style="color:var(--dim)">${p.exceptions.length}</td>
+      <td class="m" style="color:${p.excPending?C.warn:C.faint}">${p.excPending||"—"}</td>
+      <td style="padding-right:8px">${icon("chevron",14,C.faint)}</td></tr>`;}).join("");
+  return `
+  ${pageHead("04 · WHAT IS SHIFTING","Change",
+    "People move between personas and ask for apps outside their catalogue. Both are early signals that a persona definition has drifted from the work.")}
+  <div class="g4" style="margin-bottom:18px">
+    ${kpi(MIGRATIONS.length,"Persona changes")}
+    ${kpi(d3.sum(MIGRATIONS,m=>m.people).toLocaleString(),"People reassigned")}
+    ${kpi(EXCEPTIONS.length,"App exceptions")}
+    ${kpi(EXCEPTIONS.filter(e=>e.state==="Pending").length,"Exceptions pending",C.warn)}</div>
+  <div class="gmain">
+    ${panel(`<div class="eyebrow" style="margin-bottom:4px">Where people moved this quarter${ct("SANKEY-STYLE FLOW")}</div>
+      <div style="font-size:11.5px;color:var(--faint);margin-bottom:8px">Ribbon width is the number of people. Which apps change is on each persona's page.</div>
+      ${migrationFlow()}`)}
+    ${panel(`<div class="eyebrow" style="margin-bottom:4px">Most-requested apps outside a persona${ct("RANKED BAR")}</div>
+      <div style="font-size:11.5px;color:var(--faint);margin-bottom:14px">Repeat requests usually mean the catalogue is wrong, not the person.</div>
+      ${barList(tally(EXCEPTIONS,"app").slice(0,8),C.accent)}`)}
+  </div>
+  ${sect("By persona")}
+  ${panel(`<div class="tscroll"><table><thead><tr>
+      <th class="l">Persona</th><th>Moved in</th><th>Moved out</th><th>Net</th>
+      <th>Exceptions</th><th>Pending</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`,"",0)}
+  <div style="margin-top:14px;font-size:11.5px;color:var(--faint)">Counts only. Open a persona to see which apps are added or removed and who holds each exception.</div>`;
+}
+
+function personaTrend(p){const r=mulberry32(p.id.charCodeAt(0)*97);
+  return d3.range(13).map(i=>Math.round(p.health-(12-i)*(r()*1.1-.35)-(12-i)*.4));}
+
+function deviceRows(p){
+  const rows=p.devices
+    .filter(d=>state.cat?d.tickets.some(t=>t.cat===state.cat):true)
+    .filter(d=>state.q?(d.user+d.host+d.model+d.site).toLowerCase().includes(state.q.toLowerCase()):true)
+    .sort((a,b)=>a.score-b.score);
+  if(!rows.length) return `<tr><td colspan="9" class="l" style="padding:26px;color:var(--faint)">No devices match. Clear the filter or search.</td></tr>`;
+  return rows.map(d=>`<tr data-act="device" data-id="${d.id}">
+    <td class="l m" style="color:var(--dim)">${d.host}</td>
+    <td class="l">${d.user}<span style="color:var(--faint)"> · ${d.site}</span></td>
+    <td class="l" style="color:var(--dim)">${d.model}</td>
+    <td class="m" style="color:${d.ramGB<p.baseline.ramGB?C.bad:C.dim}">${d.ramGB}GB</td>
+    <td class="m" style="color:${d.storageGB<p.baseline.storageGB?C.bad:C.dim}">${gb(d.storageGB)}</td>
+    <td class="m" style="color:${d.bootSec>p.baseline.bootSec?C.warn:C.dim}">${d.bootSec}s</td>
+    <td class="m" style="color:${d.tickets.length?C.warn:C.faint}">${d.tickets.length}</td>
+    <td class="m" style="color:${band(d.score)}">${Math.round(d.score)}</td>
+    <td style="padding-right:8px">${icon("chevron",14,C.faint)}</td></tr>`).join("");
+}
+
+function screenPersona(){
+  const p=P(),cc=catColor(),tickets=p.devices.flatMap(d=>d.tickets),b=p.baseline;
+  const byCat=TICKET_CATS.map(c=>({cat:c,n:tickets.filter(t=>t.cat===c).length})).filter(d=>d.n);
+  const legend=byCat.map(d=>`<button data-act="cat" data-cat="${d.cat}" style="display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;padding:3px 0;width:100%;opacity:${!state.cat||state.cat===d.cat?1:.4}">
+      <i class="dot" style="background:${cc(d.cat)}"></i><span style="font-size:11px;color:var(--dim)">${d.cat}</span>
+      <span class="m" style="font-size:11px;color:var(--text);margin-left:auto">${d.n}</span></button>`).join("");
+  const pillarRows=[["prov","Provisioning vs baseline"],["perf","Boot time & stability"],["comp","Patch & OS compliance"],["exp","Disk headroom & battery"],["sup","ServiceNow ticket load"]]
+    .map(([k,l])=>`<div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
+      <div class="truncate" style="width:150px;font-size:12px;color:var(--dim);flex-shrink:0">${l}</div>
+      <div class="bar-track"><div class="bar-fill" data-w="${p.pillars[k]}" style="width:${p.pillars[k]}%;background:${band(p.pillars[k])}"></div></div>
+      <div class="m" style="font-size:12px;color:${band(p.pillars[k])};width:26px;text-align:right">${Math.round(p.pillars[k])}</div>
+      <div class="m" style="font-size:10px;color:var(--faint);width:28px;text-align:right">w${p.weights[k]}</div></div>`).join("");
+
+  const inF=MIGRATIONS.filter(m=>m.to===p.id),outF=MIGRATIONS.filter(m=>m.from===p.id);
+  const flowCard=(m,dir)=>{
+    const other=model.find(x=>x.id===(dir==="in"?m.from:m.to));
+    const remove=APPS[m.from].filter(a=>APPS[m.to].indexOf(a)<0);
+    const add=APPS[m.to].filter(a=>APPS[m.from].indexOf(a)<0);
+    const list=(arr,tone)=>arr.length?arr.map(a=>`<div class="truncate" style="font-size:11px;color:var(--dim);padding:3px 7px;background:var(--bg-deep);border-radius:5px;margin-bottom:4px;border-left:2px solid ${tone}">${a}</div>`).join(""):`<div style="font-size:11px;color:var(--faint)">None</div>`;
+    return `<div style="border:1px solid var(--line-soft);border-radius:10px;padding:11px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">${avatar(other.id,22,other.hue)}
+        <span class="truncate" style="font-size:11.5px;color:var(--dim)">${dir==="in"?"From "+other.name:"To "+other.name}</span>
+        <span class="m" style="margin-left:auto;font-size:13px;color:${dir==="in"?C.good:C.warn}">${dir==="in"?"+":"−"}${m.people}</span></div>
+      <div class="g2" style="gap:10px">
+        <div><div style="font-size:9.5px;color:${C.warn};margin-bottom:5px;letter-spacing:.1em">REMOVED</div>${list(remove,C.warn)}</div>
+        <div><div style="font-size:9.5px;color:${C.good};margin-bottom:5px;letter-spacing:.1em">INSTALLED</div>${list(add,C.good)}</div></div></div>`;};
+  const movement=(inF.length||outF.length)?inF.map(m=>flowCard(m,"in")).join("")+outF.map(m=>flowCard(m,"out")).join("")
+    :'<div style="font-size:12px;color:var(--faint)">Nobody moved in or out of this persona this quarter.</div>';
+
+  const exc=p.exceptions.slice().sort((a,b)=>(a.state==="Pending"?0:1)-(b.state==="Pending"?0:1));
+  const excRows=exc.slice(0,10).map(e=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--line-soft)">
+      <div class="truncate" style="width:110px;font-size:12px">${e.user}</div>
+      <div class="truncate" style="flex:1;font-size:11.5px;color:${C.accent}">${e.app}</div>
+      <span class="m" style="font-size:9.5px;padding:2px 6px;border-radius:4px;flex-shrink:0;border:1px solid ${e.state==="Pending"?C.warn:e.state==="Approved"?C.good:C.line};color:${e.state==="Pending"?C.warn:e.state==="Approved"?C.good:C.faint}">${e.state}</span></div>`).join("");
+
+  const worstApps=tally(p.exceptions,"app").slice(0,5);
+  const topIssues=tally(tickets,"short").slice(0,6);
+  const models=tally(p.devices,"model"),sites=tally(p.devices,"site").slice(0,6),os=tally(p.devices,"osBuild");
+  const scores=p.devices.map(d=>d.score);
+
+  return `
+  <!-- identity band -->
+  ${panel(`<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+      <div style="width:70px;height:70px;border-radius:16px;background:var(--panel2);border:1px solid var(--line);display:grid;place-items:center;flex-shrink:0">${avatar(p.id,44,p.hue)}</div>
+      <div style="min-width:180px">
+        <div style="font-size:22px;font-weight:650;letter-spacing:-.01em">${p.name}</div>
+        <div style="font-size:12.5px;color:var(--dim)">${p.sub}</div>
+        <div class="m" style="font-size:11px;color:var(--faint);margin-top:5px">Baseline · ${b.ramGB}GB RAM · ${gb(b.storageGB)} disk · CPU ${b.cpuScore} · boot ≤${b.bootSec}s</div></div>
+      <div style="display:flex;align-items:center;gap:14px;margin-left:auto">
+        <div style="text-align:right"><div class="m" style="font-size:40px;color:${band(p.health)};line-height:1"><span class="anim-num" data-to="${Math.round(p.health)}" data-dec="0">${Math.round(p.health)}</span></div>
+          <div style="font-size:11.5px;color:${band(p.health)}">${bandLabel(p.health)}</div></div>
+        <div style="width:110px">${personaRing(p,110)}</div></div></div>`,"margin-bottom:16px")}
+
+  <div class="g4" style="margin-bottom:16px">
+    ${kpi(p.count.toLocaleString(),"Devices")}
+    ${kpi(p.underCount.toLocaleString(),"Below baseline",C.bad)}
+    ${kpi(p.openTickets.toLocaleString(),"Open tickets",C.warn)}
+    ${kpi(p.ticketsPer100.toFixed(1),"Tickets / 100")}
+    ${kpi(Math.round(p.avgBoot)+"s","Average boot",p.avgBoot>b.bootSec?C.warn:C.good)}
+    ${kpi(Math.round(p.patchPct)+"%","Patch compliant",p.patchPct>=90?C.good:C.warn)}
+    ${kpi(p.exceptions.length,"App exceptions")}
+    ${kpi((p.movedIn>0?"+":"")+(p.movedIn-p.movedOut),"Net people moved",p.movedIn-p.movedOut>=0?C.good:C.warn)}</div>
+
+  ${sect("Health composition")}
+  <div class="g3">
+    ${panel(`<div class="eyebrow" style="margin-bottom:8px">Five pillars, weighted for ${p.name}${ct("RADIAL GAUGE")}</div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+        <div style="width:180px;flex-shrink:0">${pillarGauge(p.pillars,180)}</div>
+        <div style="flex:1;min-width:220px">${pillarRows}</div></div>`)}
+    ${panel(`<div class="eyebrow">Health trend · 12 weeks${ct("AREA / SPARKLINE")}</div>${trendArea(personaTrend(p),p.hue)}
+      <div style="font-size:11px;color:var(--faint);margin-top:6px">Direction matters more than the number. A flat line under 85 means the baseline is wrong, not the fleet.</div>`)}
+    ${panel(`<div class="eyebrow">Device health spread${ct("BINNED HISTOGRAM")}</div>
+      ${binHistogram(scores,[50,60,70,80,90],bn=>Math.round(bn.x0),bn=>band((bn.x0+bn.x1)/2),"DEVICE HEALTH SCORE")}
+      <div style="font-size:11px;color:var(--faint)">A long left tail means a small group is dragging the persona average down.</div>`)}
+  </div>
+
+  ${sect("Provisioning against baseline")}
+  <div class="g3">
+    ${panel(`<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+        <div class="eyebrow">Memory${ct("HISTOGRAM + THRESHOLD")}</div>
+        <button class="link" data-act="go" data-view="baseline" data-id="${p.id}">${icon("gear",12)} Change</button></div>
+      ${baselineHistogram(p.devices,"ramGB",b.ramGB,"RAM (GB)","GB")}`)}
+    ${panel(`<div class="eyebrow">Storage${ct("HISTOGRAM + THRESHOLD")}</div>${baselineHistogram(p.devices,"storageGB",b.storageGB,"DISK (GB)","GB")}`)}
+    ${panel(`<div class="eyebrow">CPU index${ct("BINNED HISTOGRAM")}</div>
+      ${binHistogram(p.devices.map(d=>d.cpuScore),[40,50,60,70,80,90],bn=>Math.round(bn.x0),bn=>((bn.x0+bn.x1)/2>=b.cpuScore?C.good:C.bad),"CPU BENCHMARK INDEX")}`)}
+  </div>
+
+  ${sect("Experience and compliance")}
+  <div class="g3">
+    ${panel(`<div class="eyebrow" style="margin-bottom:6px">Boot time against free disk${ct("BUBBLE SCATTER")}</div>
+      ${scatter(p.devices,b)}
+      <div style="font-size:11px;color:var(--faint);margin-top:6px">Shaded zones breach the baseline. Large red dots in the bottom right are the devices to fix first.</div>`)}
+    ${panel(`<div class="eyebrow" style="margin-bottom:6px">Patch compliance by location${ct("PROGRESS BAR CHART")}</div>
+      ${complianceBySite(p.devices)}
+      <div style="font-size:11px;color:var(--faint);margin-top:6px">Bar length is device count; fill is the share patched.</div>`)}
+    ${panel(`<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+        <div class="eyebrow">Ticket mix${ct("DONUT")}</div>${state.cat?'<button class="link" data-act="cat" data-cat="">Clear</button>':''}</div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <div style="width:160px;flex-shrink:0">${ticketDonut(byCat,state.cat,160)}</div>
+        <div style="flex:1;min-width:150px">${legend}</div></div>`)}
+  </div>
+
+  ${sect("Support load from ServiceNow")}
+  <div class="g3">
+    ${panel(`<div class="eyebrow" style="margin-bottom:6px">Open tickets by age and priority${ct("STACKED COLUMN")}</div>${stackedAge(tickets)}`)}
+    ${panel(`<div class="eyebrow" style="margin-bottom:12px">What people actually report${ct("RANKED BAR")}</div>${barList(topIssues,C.warn)}`)}
+    ${panel(`<div class="eyebrow" style="margin-bottom:12px">Estate mix${ct("RANKED BAR")}</div>
+      <div style="font-size:9.5px;color:var(--faint);margin-bottom:6px;letter-spacing:.1em">HARDWARE MODEL</div>${barList(models,p.hue)}
+      <div style="font-size:9.5px;color:var(--faint);margin:12px 0 6px;letter-spacing:.1em">LOCATION</div>${barList(sites,C.cyan)}
+      <div style="font-size:9.5px;color:var(--faint);margin:12px 0 6px;letter-spacing:.1em">OS BUILD</div>${barList(os,C.accent)}`)}
+  </div>
+
+  ${sect("Movement and app exceptions")}
+  <div class="g3">
+    ${panel(`<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div class="eyebrow">People moving</div>
+        <span class="m" style="font-size:11px;color:${C.good}">+${p.movedIn}</span>
+        <span class="m" style="font-size:11px;color:${C.warn}">−${p.movedOut}</span></div>
+      <div style="max-height:290px;overflow-y:auto">${movement}</div>`)}
+    ${panel(`<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+        <div class="eyebrow">Exception holders</div>
+        <span class="m" style="font-size:11px;color:var(--dim)">${p.exceptions.length} people</span>
+        ${p.excPending?`<span class="m" style="font-size:11px;color:${C.warn}">${p.excPending} pending</span>`:""}</div>
+      <div style="font-size:11px;color:var(--faint);margin:6px 0 2px">Apps needed that sit outside the ${p.name} catalogue.</div>
+      ${excRows||'<div style="font-size:12px;color:var(--faint);padding-top:10px">No exceptions raised.</div>'}
+      ${exc.length>10?`<div style="font-size:11px;color:var(--faint);padding-top:9px">+ ${exc.length-10} more</div>`:""}`)}
+    ${panel(`<div class="eyebrow" style="margin-bottom:6px">Exception pressure by app${ct("RANKED BAR")}</div>
+      <div style="font-size:11px;color:var(--faint);margin-bottom:12px">If one app keeps appearing, it probably belongs in the ${p.name} catalogue.</div>
+      ${worstApps.length?barList(worstApps,C.fresh):'<div style="font-size:12px;color:var(--faint)">Nothing requested outside the catalogue.</div>'}`)}
+  </div>
+
+  ${sect("Devices"+(state.cat?" · filtered by "+state.cat+" tickets":" · worst first"))}
+  ${panel(`<div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap">
+      <div class="eyebrow">${p.devices.length} in sample · click a row for the device page</div>
+      <div class="search" style="margin-left:auto">${icon("search",13,C.faint)}
+        <input id="devsearch" placeholder="user, host, model, site" value="${state.q}"/></div></div>
+    <div class="tscroll" style="max-height:380px;overflow-y:auto"><table><thead><tr>
+      <th class="l">Device</th><th class="l">Assigned to</th><th class="l">Model</th>
+      <th>RAM</th><th>Disk</th><th>Boot</th><th>Tickets</th><th>Score</th><th></th></tr></thead>
+      <tbody id="devbody">${deviceRows(p)}</tbody></table></div>`,"",0)}`;
+}
+
+function screenDevice(){
+  const p=P(),d=D(),b=p.baseline,req=APPS[p.id];
+  const missing=req.filter(a=>d.installed.indexOf(a)<0);
+  const outside=d.installed.filter(a=>req.indexOf(a)<0);
+  const cols=[{t:"Entitled & installed",items:d.installed.filter(a=>req.indexOf(a)>=0),tone:C.good,note:"Matches persona catalogue"},
+    {t:"Missing from device",items:missing,tone:C.warn,note:"Will be pushed on next sync"},
+    {t:"Outside persona",items:outside,tone:C.fresh,note:"Needs an exception to stay"}]
+    .map(c=>`<div><div style="font-size:11px;color:${c.tone};margin-bottom:8px">${c.t}</div>
+      ${c.items.length?c.items.map(a=>`<div class="applet" style="border-left:2px solid ${c.tone}">${a}</div>`).join(""):'<div style="font-size:11px;color:var(--faint)">None</div>'}
+      <div style="font-size:10px;color:var(--faint);margin-top:6px">${c.note}</div></div>`).join("");
+  const tix=d.tickets.length?d.tickets.map(t=>`
+    <div style="border-left:2px solid ${t.priority==="P1"?C.bad:t.priority==="P2"?C.warn:C.accent};padding-left:11px;margin-bottom:14px">
+      <div style="display:flex;gap:8px;align-items:center"><span class="m" style="font-size:11px">${t.number}</span>
+        <span class="m" style="font-size:9px;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:1px 4px">${t.priority}</span>
+        <span style="font-size:10px;color:var(--faint);margin-left:auto">${t.ageDays}d</span></div>
+      <div style="font-size:12px;color:var(--dim);margin-top:3px">${t.short}</div>
+      <div style="font-size:10px;color:var(--faint);margin-top:3px">${t.cat} · ${t.state} · ${t.group}</div></div>`).join("")
+    :'<div style="font-size:12px;color:var(--faint)">No tickets in the last 90 days.</div>';
+  const acts=[d.ramGB<b.ramGB&&`Upgrade memory to ${b.ramGB}GB to meet the ${p.name} baseline`,
+    d.storageGB<b.storageGB&&`Replace disk — ${gb(b.storageGB)} required`,
+    d.cpuScore<b.cpuScore&&"Schedule refresh — CPU index below persona floor",
+    !d.patched&&"Force patch ring re-evaluation",
+    d.freePct<b.freePct&&"Run storage clean-up policy",
+    missing.length&&`Push ${missing.length} missing persona app${missing.length>1?"s":""}`,
+    outside.length&&`Raise exception or remove ${outside.length} non-persona app${outside.length>1?"s":""}`]
+    .filter(Boolean).map((a,i)=>`<div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--dim);margin-bottom:9px">
+      <span class="m" style="font-size:10px;color:${C.accent};margin-top:2px;flex-shrink:0">${String(i+1).padStart(2,"0")}</span>${a}</div>`).join("")
+    ||'<div style="font-size:12px;color:var(--faint)">Device meets every baseline. No action needed.</div>';
+  return `<div class="gmain">
+    <div>
+      ${panel(`<div style="display:flex;gap:16px;align-items:center;margin-bottom:18px;flex-wrap:wrap">
+        <div style="width:58px;height:58px;border-radius:14px;background:var(--panel2);border:1px solid var(--line);display:grid;place-items:center;flex-shrink:0">${avatar(p.id,36,p.hue)}</div>
+        <div style="min-width:180px"><div style="font-size:18px;font-weight:650">${d.user}</div>
+          <div style="font-size:12px;color:var(--faint)">${d.email} · ${d.site}</div>
+          <div class="m" style="font-size:11px;color:var(--dim);margin-top:4px">${d.host} · ${d.model} · ${d.osBuild} · seen ${d.lastSeen}d ago</div></div>
+        <div style="margin-left:auto;text-align:right"><div class="m" style="font-size:32px;color:${band(d.score)}"><span class="anim-num" data-to="${Math.round(d.score)}" data-dec="0">${Math.round(d.score)}</span></div>
+          <div class="eyebrow">Device health</div></div></div>
+      <div class="eyebrow" style="margin-bottom:12px">Actual against ${p.name} baseline${ct("BULLET CHART")}</div>
+      <div class="g2" style="gap:0 26px">
+        ${bullet("Memory",d.ramGB,b.ramGB,Math.max(b.ramGB,d.ramGB)*1.15,"GB",false,"ram")}
+        ${bullet("Storage",d.storageGB,b.storageGB,Math.max(b.storageGB,d.storageGB)*1.15,"GB",false,"disk")}
+        ${bullet("CPU index",d.cpuScore,b.cpuScore,100,"",false,"cpu")}
+        ${bullet("Free disk",d.freePct,b.freePct,100,"%",false,"disk")}
+        ${bullet("Boot time",d.bootSec,b.bootSec,Math.max(b.bootSec,d.bootSec)*1.15,"s",true,"clock")}
+        ${bullet("Battery health",d.batteryPct,b.batteryPct,100,"%",false,"battery")}
+        ${bullet("Crashes / 30d",d.crashes,b.crashes,Math.max(b.crashes,d.crashes)+2,"",true,"alert")}</div>`,"margin-bottom:16px")}
+      ${panel(`<div class="eyebrow" style="margin-bottom:14px">Application entitlement against persona</div>
+        <div class="g3" style="gap:14px">${cols}</div>`)}
+    </div>
+    <div>
+      ${panel(`<div class="eyebrow" style="margin-bottom:12px">ServiceNow · this device</div>${tix}
+        ${state.raised?`<div style="background:var(--hover);border:1px solid ${C.good};border-radius:8px;padding:10px;font-size:11.5px;color:${C.good};margin-bottom:12px">${state.raised} created and routed to EUC-Provisioning.</div>`:""}
+        <button class="btn btn-primary" data-act="raise" style="width:100%">${icon("ticket",13)} Raise provisioning request</button>`,"margin-bottom:16px")}
+      ${panel(`<div class="eyebrow" style="margin-bottom:10px">Suggested actions</div>${acts}`)}
+    </div></div>`;
+}
+
+const BFIELDS=[
+  {k:"ramGB",label:"Minimum memory",unit:"GB",step:8,min:8,max:128,ic:"ram"},
+  {k:"storageGB",label:"Minimum storage",unit:"GB",step:256,min:256,max:4096,ic:"disk"},
+  {k:"cpuScore",label:"Minimum CPU index",unit:"",step:2,min:30,max:100,ic:"cpu"},
+  {k:"bootSec",label:"Maximum boot time",unit:"s",step:5,min:15,max:120,ic:"clock"},
+  {k:"crashes",label:"Maximum crashes / 30d",unit:"",step:1,min:0,max:10,ic:"alert"},
+  {k:"freePct",label:"Minimum free disk",unit:"%",step:5,min:5,max:50,ic:"disk"},
+  {k:"batteryPct",label:"Minimum battery health",unit:"%",step:5,min:40,max:100,ic:"battery"},
+  {k:"ticketsPer100",label:"Ticket ceiling / 100 devices",unit:"",step:1,min:2,max:40,ic:"ticket"}];
+function baselineImpact(p){
+  return `<div style="max-width:140px;margin:0 auto">${personaRing(p,140)}</div>
+    <div class="row-sb" style="margin-top:12px"><span style="color:var(--dim)">Devices below baseline</span><span class="m" style="color:${C.bad}">${p.underCount.toLocaleString()}</span></div>
+    <div class="row-sb"><span style="color:var(--dim)">Share of persona</span><span class="m" style="color:${C.bad}">${Math.round(p.underPct*100)}%</span></div>
+    <div class="row-sb"><span style="color:var(--dim)">Provisioning pillar</span><span class="m" style="color:${band(p.pillars.prov)}">${Math.round(p.pillars.prov)}</span></div>
+    <div class="row-sb"><span style="color:var(--dim)">Composite health</span><span class="m" style="color:${band(p.health)}">${Math.round(p.health)}</span></div>`;
+}
+
+/* ---------------- DEVICE FIT ANALYSIS (baseline page) ------------- */
+/* A device is graded on the three provisioning parts only: CPU, RAM,
+   SSD. Below on two or more parts is a critical mismatch; below on one
+   is under-provisioned; above on any part with none below is over-
+   provisioned; exactly on all three is a fit. */
+const FITKINDS=[["fit","Fit devices","good"],["under","Under provisioned","warn"],
+  ["over","Over-provisioned","accent"],["crit","Critically mismatched","bad"]];
+function fitClass(d,b){
+  const below=(d.ramGB<b.ramGB)+(d.storageGB<b.storageGB)+(d.cpuScore<b.cpuScore);
+  const above=(d.ramGB>b.ramGB)+(d.storageGB>b.storageGB)+(d.cpuScore>b.cpuScore);
+  return below>=2?"crit":below===1?"under":above>0?"over":"fit";
+}
+function fitByPersona(){
+  return model.map(p=>{
+    const b=p.baseline,scale=p.count/p.devices.length,o={id:p.id,name:p.name,hue:p.hue,total:p.count};
+    FITKINDS.forEach(([k])=>o[k]=0);
+    p.devices.forEach(d=>o[fitClass(d,b)]++);
+    FITKINDS.forEach(([k])=>o[k]=Math.round(o[k]*scale));
+    o.cpuPct=Math.round(p.devices.filter(d=>d.cpuScore>=b.cpuScore).length/p.devices.length*100);
+    o.ramPct=Math.round(p.devices.filter(d=>d.ramGB>=b.ramGB).length/p.devices.length*100);
+    o.ssdPct=Math.round(p.devices.filter(d=>d.storageGB>=b.storageGB).length/p.devices.length*100);
+    return o;
+  });
+}
+const cpuTier=v=>v>=80?"Intel Core i9":v>=62?"Intel Core i7":v>=45?"Intel Core i5":"Intel Core i3";
+function fitDonut(tot,size=200){
+  const rows=FITKINDS.map(([k,l,t])=>({k,l,c:C[t],n:tot[k]})).filter(d=>d.n);
+  const total=d3.sum(rows,d=>d.n)||1,r=size/2-6;
+  const pie=d3.pie().value(d=>d.n).sort(null).padAngle(.015);
+  const sl=pie(rows).map((a,i)=>arcA(r-28,r,4,a.startAngle,a.endAngle,a.data.c,.92,i*70)).join("");
+  return svgFluid(size,size,`<g transform="translate(${size/2},${size/2})">${sl}
+    ${numT(0,-2,total,20,C.text,"middle")}${txt(0,15,"DEVICES",8.5,C.faint,"middle")}</g>`,size);
+}
+function fitStack(rows,w=560,h=250){
+  const m={t:10,r:14,b:26,l:120};
+  const data=rows.slice().sort((a,b)=>b.total-a.total);
+  const y=d3.scaleBand().domain(data.map(d=>d.id)).range([m.t,h-m.b]).padding(.34);
+  const x=d3.scaleLinear().domain([0,d3.max(data,d=>d.total)||1]).range([m.l,w-m.r]);
+  const grid=x.ticks(5).map(t=>`<line x1="${x(t)}" x2="${x(t)}" y1="${m.t}" y2="${h-m.b}" stroke="${C.lineSoft}" stroke-dasharray="2 3"/>${txt(x(t),h-m.b+14,(t/1000).toFixed(0)+"K",9,C.faint,"middle")}`).join("");
+  const bars=data.map((d,i)=>{let acc=0;
+    return txt(m.l-8,y(d.id)+y.bandwidth()/2+3,d.name.length>15?d.name.slice(0,15)+"…":d.name,10,C.dim,"end")
+      +FITKINDS.map(([k,l,t],j)=>{const v=d[k];if(!v)return"";
+        const x0=x(acc),wd=x(acc+v)-x(acc);acc+=v;
+        return rectA(x0,y(d.id),Math.max(1,wd),y.bandwidth(),2,C[t],.88,i*60+j*30,"right");}).join("");}).join("");
+  const key=FITKINDS.map(([k,l,t],i)=>`<rect x="${m.l+i*136}" y="${h-12}" width="8" height="8" rx="2" fill="${C[t]}"/>${txt(m.l+i*136+12,h-5,l,9,C.faint)}`).join("");
+  return svgFluid(w,h,`${grid}${bars}${key}`);
+}
+function fitBlock(){
+  const rows=fitByPersona();
+  const tot={};FITKINDS.forEach(([k])=>tot[k]=d3.sum(rows,r=>r[k]));
+  const total=d3.sum(rows,r=>r.total);
+  const pctOf=v=>total?(v/total*100).toFixed(1)+"%":"0%";
+  const tiles=[["Total devices",total,C.text,""]].concat(
+    FITKINDS.map(([k,l,t])=>[l,tot[k],C[t],pctOf(tot[k])]))
+    .map(([l,v,c,sub])=>`<div class="statbox">
+      <div class="eyebrow">${l}</div>
+      <div class="stat-v" style="color:${c};font-size:30px;margin-top:8px"><span class="anim-num" data-to="${v}" data-dec="0">${v.toLocaleString()}</span></div>
+      <div style="font-size:11.5px;color:var(--dim);margin-top:6px">${sub?sub+" of estate":"across "+model.length+" personas"}</div></div>`).join("");
+  const legend=FITKINDS.map(([k,l,t])=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0">
+      <i class="dot" style="background:${C[t]}"></i><span style="font-size:11.5px;color:var(--dim)">${l}</span>
+      <span class="m" style="font-size:11.5px;color:var(--text);margin-left:auto">${tot[k].toLocaleString()}</span>
+      <span class="m" style="font-size:10.5px;color:var(--faint);width:48px;text-align:right">${pctOf(tot[k])}</span></div>`).join("");
+  const cellTone=v=>v>=85?C.good:v>=70?C.warn:C.bad;
+  const cell=v=>`<td class="m" style="color:${cellTone(v)};background:${cellTone(v)}1A">${v}%</td>`;
+  const mismatch=rows.slice().sort((a,b)=>(a.cpuPct+a.ramPct+a.ssdPct)-(b.cpuPct+b.ramPct+b.ssdPct))
+    .map(r=>`<tr data-act="basepick" data-id="${r.id}">
+      <td class="l"><span style="display:inline-flex;align-items:center;gap:8px">${avatar(r.id,20,r.hue)}${r.name}</span></td>
+      ${cell(r.cpuPct)}${cell(r.ramPct)}${cell(r.ssdPct)}</tr>`).join("");
+  const ref=model.slice().sort((a,b)=>a.baseline.cpuScore-b.baseline.cpuScore).map(p=>{
+    const b=p.baseline,d=DEFAULT_BASELINE[p.id],ch=v=>v?`color:${C.accent}`:"color:var(--dim)";
+    return `<tr data-act="basepick" data-id="${p.id}">
+      <td class="l"><span style="display:inline-flex;align-items:center;gap:8px">${avatar(p.id,20,p.hue)}${p.name}</span></td>
+      <td class="l m" style="${ch(b.cpuScore!==d.cpuScore)}">${cpuTier(b.cpuScore)} <span style="color:var(--faint)">· idx ${b.cpuScore}</span></td>
+      <td class="m" style="${ch(b.ramGB!==d.ramGB)}">${b.ramGB} GB</td>
+      <td class="m" style="${ch(b.storageGB!==d.storageGB)}">${gb(b.storageGB)}</td></tr>`;}).join("");
+
+  return {
+    tiles:`<div class="g5">${tiles}</div>`,
+    charts:`<div class="g2">
+      ${panel(`<div class="eyebrow" style="margin-bottom:8px">Overall fit status${ct("DONUT")}</div>
+        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+          <div style="width:180px;flex-shrink:0">${fitDonut(tot,180)}</div>
+          <div style="flex:1;min-width:200px">${legend}</div></div>`)}
+      ${panel(`<div class="eyebrow" style="margin-bottom:8px">Fit distribution by persona${ct("STACKED BAR")}</div>${fitStack(rows)}`)}
+    </div>`,
+    tables:`<div class="g2">
+      ${panel(`<div class="eyebrow" style="margin-bottom:4px">Component match${ct("HEAT TABLE")}</div>
+        <div style="font-size:11.5px;color:var(--faint);margin-bottom:10px">Share of devices meeting the baseline on each part. Worst persona first — click a row to edit that contract.</div>
+        <div class="tscroll"><table><thead><tr><th class="l">Persona</th><th>CPU</th><th>RAM</th><th>SSD</th></tr></thead>
+          <tbody>${mismatch}</tbody></table></div>`)}
+      ${panel(`<div class="eyebrow" style="margin-bottom:4px">Baseline reference</div>
+        <div style="font-size:11.5px;color:var(--faint);margin-bottom:10px">The contract every device is measured against. Blue means edited from default.</div>
+        <div class="tscroll"><table><thead><tr><th class="l">Persona</th><th class="l">CPU</th><th>RAM</th><th>SSD</th></tr></thead>
+          <tbody>${ref}</tbody></table></div>`)}
+    </div>`};
+}
+const fitPart=k=>fitBlock()[k];
+
+function screenBaseline(){
+  const pid=state.baseFocus||model[0].id,p=model.find(x=>x.id===pid),b=state.baselines[pid];
+  const dirty=JSON.stringify(b)!==JSON.stringify(DEFAULT_BASELINE[pid]);
+  const strip=model.map(x=>`<button data-act="basepick" data-id="${x.id}"
+    style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:9px;cursor:pointer;
+    background:${pid===x.id?"var(--hover)":"var(--panel)"};border:1px solid ${pid===x.id?C.accent:"var(--line)"}">
+    ${avatar(x.id,20,x.hue)}<span style="font-size:12px;white-space:nowrap;color:${pid===x.id?C.text:C.dim}">${x.name}</span></button>`).join("");
+  const sliders=BFIELDS.map(f=>`<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+      <div style="width:190px;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dim);flex-shrink:0">${icon(f.ic,13)}${f.label}</div>
+      <div style="flex:1;min-width:110px"><input type="range" min="${f.min}" max="${f.max}" step="${f.step}" value="${b[f.k]}" data-slider="${f.k}"/></div>
+      <div class="m" id="val-${f.k}" style="font-size:13px;color:${b[f.k]!==DEFAULT_BASELINE[pid][f.k]?C.accent:C.text};width:70px;text-align:right;flex-shrink:0">${f.k==="storageGB"?gb(b[f.k]):b[f.k]+f.unit}</div></div>`).join("");
+  const cat=APPS[pid].map(a=>`<span style="font-size:11.5px;color:var(--dim);padding:5px 9px;background:var(--bg-deep);border:1px solid var(--line-soft);border-radius:6px">${a}</span>`).join("");
+  return `
+  ${pageHead("02 · WHAT THEY GET","Baselines &amp; device fit",
+    "Where the fleet stands today, the contract behind it, and which component is missing. Move any slider and every number on this page re-grades.",
+    dirty?`<span class="m" style="font-size:10px;color:${C.warn}">UNSAVED CHANGES</span>
+      <button class="btn btn-ghost" data-act="basereset" style="font-size:11px;padding:5px 9px">${icon("reset",11)} Reset ${p.name}</button>`:"")}
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px">${strip}</div>
+
+  ${sect("Where the fleet stands")}
+  <div id="fittiles">${fitPart("tiles")}</div>
+  <div style="margin-top:12px;font-size:11.5px;color:var(--faint)">Fit is judged on CPU, memory and storage only. Below on two parts or more is a critical mismatch; above on any part with none below is over-provisioned spend.</div>
+
+  ${sect("The contract")}
+  <div class="gmain">
+    ${panel(`<div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;flex-wrap:wrap">
+        <div class="eyebrow">Baseline contract · ${p.name}</div>
+        ${dirty?`<span class="m" style="font-size:10px;color:${C.warn}">EDITED</span>`:""}
+        <button class="btn btn-ghost" data-act="basereset" style="margin-left:auto;font-size:11px;padding:5px 9px">${icon("reset",11)} Reset</button></div>
+      <div style="font-size:11.5px;color:var(--faint);margin-bottom:20px">Every minimum and every ceiling for this persona. The ticket ceiling at the bottom is what grades the Tickets page.</div>
+      ${sliders}`)}
+    ${panel(`<div class="eyebrow" style="margin-bottom:14px">Live impact${ct("RADIAL GAUGE")}</div><div id="impact">${baselineImpact(p)}</div>
+      <div style="font-size:11px;color:var(--faint);margin-top:14px;line-height:1.6">Raising a minimum turns compliant devices non-compliant instantly. Use this to size a refresh programme before committing budget.</div>`)}
+  </div>
+
+  ${sect("Why the fleet misses it")}
+  <div id="fitcharts">${fitPart("charts")}</div>
+
+  ${sect("Which component fails")}
+  <div id="fittables">${fitPart("tables")}</div>
+
+  ${sect("Persona app catalogue")}
+  ${panel(`<div style="font-size:11.5px;color:var(--faint);margin-bottom:12px">What ${p.name} is entitled to install. Anything outside this list needs an exception, which shows up on the Change page.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">${cat}
+      <button style="font-size:11.5px;color:${C.accent};padding:5px 9px;background:none;border:1px dashed ${C.accent};border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:4px">${icon("plus",11)} Add app</button></div>`)}`;
+}
+
+/* ======================== GUIDED TOUR =========================== */
+/* A self-driving walkthrough. Records cleanly: every step navigates,
+   scrolls and captions itself on a timer, so nobody has to click on
+   camera. Durations are tuned to a 150 wpm voiceover — they match the
+   narration script line for line.                                    */
+const TOUR=[
+ {kind:"title",dur:5000,
+  cap:"Persona Fleet Command",sub:"ENDPOINT EXPERIENCE PORTAL"},
+
+ /* ---- ACT ONE · WHO ---- */
+ {view:"landing",dur:13000,eyebrow:"01 · PERSONAS",
+  cap:"Every persona in the estate, one ring each. The outer arc is persona health, the inner red arc is the share of devices sitting below their baseline."},
+
+ {view:"landing",dur:10000,eyebrow:"01 · PERSONAS",
+  cap:"Four numbers set the scale: seven personas, twelve thousand devices, how many fall short, and what that is costing in open tickets."},
+
+ {view:"landing",scroll:0,dur:14000,eyebrow:"01 · MAPPING CONFIDENCE",
+  cap:"Before any of that means anything, people have to be in the right persona. Every job title is mapped by model, and every mapping carries a confidence score."},
+
+ {view:"landing",scroll:0,cband:"low",dur:13000,eyebrow:"01 · MAPPING CONFIDENCE",
+  cap:"Three bands make the workload obvious. Under fifty per cent needs a human, because a weak mapping puts the wrong baseline on a real device."},
+
+ {view:"landing",scroll:1,cband:"low",dur:12000,eyebrow:"01 · REVIEW QUEUE",
+  cap:"The queue underneath names the title, the department, the persona it was mapped to, and why it was flagged. Contact Centre and Field Engineer carry most of it."},
+
+ /* ---- ACT TWO · WHAT THEY GET ---- */
+ {view:"baseline",pid:"DEV",cband:null,scroll:0,dur:13000,eyebrow:"02 · WHERE THE FLEET STANDS",
+  cap:"Second act. Before the contract itself, the headline: how much of the fleet is a fit, how much is under-provisioned, how much is over-provisioned spend, and how much is critically mismatched."},
+
+ {view:"baseline",pid:"DEV",scroll:1,dur:14000,eyebrow:"02 · THE CONTRACT",
+  cap:"Each persona has a contract: minimum memory, storage, CPU, boot time, and a ceiling on tickets. Every number in this portal is measured against it."},
+
+ {view:"baseline",pid:"DS",scroll:1,dur:14000,eyebrow:"02 · LIVE IMPACT",
+  cap:"Change a value and the whole portal recalculates. The panel on the right prices the change immediately, so a refresh programme can be sized before budget is committed."},
+
+ {view:"baseline",pid:"DEV",scroll:2,dur:14000,eyebrow:"02 · WHY IT MISSES",
+  cap:"Split by persona, the shape of the miss is obvious. Over-provisioning costs money; critical mismatch costs productivity, and the two do not land on the same personas."},
+
+ {view:"baseline",pid:"CC",scroll:3,dur:13000,eyebrow:"02 · WHICH COMPONENT",
+  cap:"The heat table shows which component fails for which persona. The personas with the weakest mapping are the same ones failing here — that is not a coincidence."},
+
+ /* ---- ACT THREE · WHAT IT COSTS ---- */
+ {view:"tickets",dur:14000,eyebrow:"03 · TICKETS",
+  cap:"And this is what it costs to run. Incident volume, how many people raised it, and the load per user against each persona's ticket ceiling."},
+
+ {view:"tickets",scroll:0,dur:13000,eyebrow:"03 · DISTRIBUTION",
+  cap:"What is breaking, which departments carry it, when it arrived, and how it is ageing by priority. A tall right-hand bar means things are ageing, not arriving."},
+
+ {view:"tickets",scroll:1,dur:15000,eyebrow:"03 · PERSONA TICKET HEALTH",
+  cap:"The summary closes the loop. Contact Centre and Field Engineer are over their ceiling — the same two personas with the weakest mapping and the worst device fit."},
+
+ {view:"tickets",tmode:"req",dur:13000,eyebrow:"03 · SERVICE REQUESTS",
+  cap:"One switch moves the page to service requests. Repeated memory and storage requests are not a support problem — they are a baseline set too low."},
+
+ /* ---- ACT FOUR · WHAT IS SHIFTING ---- */
+ {view:"movement",tmode:"inc",dur:14000,eyebrow:"04 · CHANGE",
+  cap:"Finally, what is shifting. Where people moved this quarter, and which applications are most often requested outside a persona."},
+
+ {view:"movement",dur:11000,eyebrow:"04 · CHANGE",
+  cap:"A repeat request usually means the catalogue is wrong, not the person. Which takes you straight back to the persona definition."},
+
+ /* ---- CLOSE ---- */
+ {view:"landing",dur:12000,eyebrow:"END TO END",
+  cap:"Mapping decides the persona. The persona sets the baseline. The baseline grades the device. The device drives the tickets. One story, four screens."}
+];
+
+/* ===================== PERSONA SWITCH (new) ===================== */
+const TASKS_AUTO={DEV:14,KW:8,CC:11,FIELD:6,EXEC:5,DS:16,CRE:9};   /* tasks automated per week, per persona standard */
+const ONBOARD_DAYS={DEV:3,KW:1,CC:1,FIELD:4,EXEC:2,DS:3,CRE:3};    /* days to be ready on persona standard */
+const allUsers=()=>RAW.flatMap(p=>p.sample.map(d=>Object.assign({},d,{home:p.id})));
+const curPid=d=>d.home;
+const pName=id=>RAW.find(p=>p.id===id).name;
+function swMetrics(d,from,to){
+  const bF=state.baselines[from],bT=state.baselines[to];
+  const sF=scoreDevice(d,bF),sT=scoreDevice(d,bT);
+  const comp=s=>Math.round(.35*s.prov+.3*s.perf+.2*s.comp+.15*s.exp);
+  const fitNow=d.ramGB>=bT.ramGB&&d.storageGB>=bT.storageGB&&d.cpuScore>=bT.cpuScore;
+  const risk=(!d.patched&&d.osBuild.indexOf("Win10")===0)?"High":(!d.patched||d.osBuild.indexOf("Win10")===0)?"Medium":"Low";
+  const add=APPS[to].filter(a=>APPS[from].indexOf(a)<0),rem=APPS[from].filter(a=>APPS[to].indexOf(a)<0);
+  const need=APPS[to].filter(a=>d.installed.indexOf(a)<0);
+  return {
+    prodBefore:comp(sT),prodAfter:96,
+    tasksBefore:TASKS_AUTO[from],tasksAfter:TASKS_AUTO[to],
+    add,rem,need,
+    riskBefore:risk,riskAfter:"Low",
+    fitBefore:fitNow,
+    tixBefore:d.tickets.length,tixAfter:+(bT.ticketsPer100/100).toFixed(2),
+    onBefore:ONBOARD_DAYS[from],onAfter:ONBOARD_DAYS[to],
+    uxBefore:Math.round(sT.exp),uxAfter:95,
+    bootBefore:d.bootSec,bootAfter:bT.bootSec,
+    ramBefore:d.ramGB,ramAfter:Math.max(d.ramGB,bT.ramGB),
+    stBefore:d.storageGB,stAfter:Math.max(d.storageGB,bT.storageGB),
+    baseFit:comp(sF)
+  };
+}
+function swRow(label,before,after,better,note){
+  const col=better===true?C.good:better===false?C.bad:"var(--dim)";
+  return `<tr><td class="l">${label}</td><td class="m" style="color:var(--dim)">${before}</td>
+    <td class="m" style="color:${col};font-weight:600">${after}</td><td class="l" style="color:var(--faint);font-size:11px">${note||""}</td></tr>`;
+}
+function screenSwitch(){
+  const ALL_USERS=allUsers(),d=ALL_USERS.find(u=>u.id===state.swUser);
+  const groups=RAW.map(p=>`<optgroup label="${p.name}">${ALL_USERS.filter(u=>curPid(u)===p.id)
+    .map(u=>`<option value="${u.id}" ${state.swUser===u.id?"selected":""}>${u.user} · ${u.host}</option>`).join("")}</optgroup>`).join("");
+  const userSel=`<select class="theme-sel" id="swuser" style="min-width:260px"><option value="">Select a user</option>${groups}</select>`;
+  let step2="",step3="",step4="";
+  if(d){
+    const from=curPid(d);
+    const toOpts=RAW.filter(p=>p.id!==from).map(p=>`<option value="${p.id}" ${state.swTo===p.id?"selected":""}>${p.name}</option>`).join("");
+    step2=panel(`<div class="eyebrow" style="margin-bottom:10px">Step 2 · Current persona (auto-selected)</div>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">${avatar(from,40,HUE[from])}
+        <div><div style="font-size:16px;font-weight:600">${pName(from)}</div>
+        <div style="font-size:11.5px;color:var(--faint)">${d.user} · ${d.email} · ${d.site} · ${d.model} · ${d.ramGB}GB RAM · ${gb(d.storageGB)}</div></div></div>
+      <div class="eyebrow" style="margin:16px 0 8px">Step 3 · Choose new persona</div>
+      <select class="theme-sel" id="swto" style="min-width:260px"><option value="">Select a persona</option>${toOpts}</select>`);
+    if(state.swTo&&state.swTo!==from){
+      const to=state.swTo,m=swMetrics(d,from,to);
+      const riskN={Low:1,Medium:2,High:3};
+      step3=`${sect("Step 4 · Impact of moving "+d.user+" from "+pName(from)+" to "+pName(to))}
+      <div class="g4" style="margin-bottom:14px">
+        ${kpi(m.prodBefore+" → "+m.prodAfter,"Productivity score (of 100)",C.good)}
+        ${kpi((m.tasksAfter-m.tasksBefore>=0?"+":"")+(m.tasksAfter-m.tasksBefore)+" / wk","Tasks automated",m.tasksAfter>=m.tasksBefore?C.good:C.warn)}
+        ${kpi(m.riskBefore+" → "+m.riskAfter,"Security risk",C.good)}
+        ${kpi(m.uxBefore+" → "+m.uxAfter,"User experience score",C.good)}</div>
+      ${panel(`<div class="tscroll"><table><thead><tr><th class="l">Measure</th><th>Today (${pName(from)})</th><th>After change (${pName(to)})</th><th class="l">How it is worked out</th></tr></thead><tbody>
+        ${swRow("Productivity score",m.prodBefore,m.prodAfter,m.prodAfter>m.prodBefore,"Device graded against the "+pName(to)+" baseline")}
+        ${swRow("Tasks automated per week",m.tasksBefore,m.tasksAfter,m.tasksAfter>m.tasksBefore?true:m.tasksAfter<m.tasksBefore?false:null,"Persona standard build")}
+        ${swRow("Apps added",'—',m.add.length?m.add.join(", "):"None",m.add.length?true:null,"From the "+pName(to)+" catalogue")}
+        ${swRow("Apps removed",'—',m.rem.length?m.rem.join(", "):"None",null,"Not in the new catalogue")}
+        ${swRow("Apps to install on this device",'—',m.need.length,null,"New catalogue apps not yet installed")}
+        ${swRow("Security risk level",m.riskBefore,m.riskAfter,riskN[m.riskAfter]<riskN[m.riskBefore]?true:null,"Patched, Win11 standard image")}
+        ${swRow("Device fit for role",m.fitBefore?"Yes":"No","Yes",m.fitBefore?null:true,"RAM, storage and CPU vs new baseline")}
+        ${swRow("RAM",m.ramBefore+"GB",m.ramAfter+"GB",m.ramAfter>m.ramBefore?true:null,"Baseline "+state.baselines[to].ramGB+"GB")}
+        ${swRow("Storage",gb(m.stBefore),gb(m.stAfter),m.stAfter>m.stBefore?true:null,"Baseline "+gb(state.baselines[to].storageGB))}
+        ${swRow("Boot time",m.bootBefore+"s",m.bootAfter+"s",m.bootAfter<m.bootBefore?true:m.bootAfter>m.bootBefore?false:null,"Baseline target")}
+        ${swRow("Support tickets per user",m.tixBefore,m.tixAfter,m.tixAfter<m.tixBefore?true:m.tixAfter>m.tixBefore?false:null,"Open now vs "+pName(to)+" ceiling")}
+        ${swRow("Onboarding time (days)",m.onBefore,m.onAfter,m.onAfter<m.onBefore?true:m.onAfter>m.onBefore?false:null,"Days to be ready")}
+        ${swRow("User experience score",m.uxBefore,m.uxAfter,m.uxAfter>m.uxBefore,"Free disk, battery, crashes")}
+      </tbody></table></div>`,"",0)}
+      <div style="font-size:11px;color:var(--faint);margin:8px 0 14px">"After" values assume the device is brought up to the ${pName(to)} baseline. Figures are estimates for demo.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="chip on" data-act="swapply">Apply persona change</button>
+        <button class="chip" data-act="swreset">Start again</button></div>`;
+    }
+  }
+  const log=state.switches.length?`${sect("Persona change log")}
+    ${panel(`<div class="tscroll"><table><thead><tr><th class="l">Date</th><th class="l">User</th><th class="l">From</th><th class="l">To</th><th class="l">See it on</th></tr></thead><tbody>
+    ${state.switches.map(s=>`<tr><td class="l">${s.date||""}</td><td class="l">${s.user}</td><td class="l">${pName(s.from)}</td><td class="l">${pName(s.to)}</td>
+      <td class="l"><button class="link" data-act="persona" data-id="${s.to}">${pName(s.to)} page</button> ·
+      <button class="link" data-act="go" data-view="movement">Change page</button></td></tr>`).join("")}</tbody></table></div>`,"",0)}`:"";
+  const toast=state.swDone?`<div style="background:var(--hover);border:1px solid ${C.good};border-radius:8px;padding:10px;font-size:12px;color:${C.good};margin-bottom:14px">
+    Persona changed: ${state.swDone}. Personas, Change and persona pages are updated.</div>`:"";
+  return `${pageHead("05 · SWITCH","Persona change",
+    "Pick a user, see their persona, choose a new one, and see the benefit before you apply it.")}
+  ${toast}
+  ${panel(`<div class="eyebrow" style="margin-bottom:10px">Step 1 · Select user</div>${userSel}`,"margin-bottom:14px")}
+  ${step2?`<div style="margin-bottom:14px">${step2}</div>`:""}
+  ${step3}${log}`;
+}
+
+/* ===================== EXCEL DATA LINK (Option A) ===================== */
+const XFILE="persona-fleet-data.xlsx";
+let dirHandle=null;
+function idb(){return new Promise((res,rej)=>{const r=indexedDB.open("pfc-folder",1);
+  r.onupgradeneeded=()=>r.result.createObjectStore("h");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function idbSet(k,v){const db=await idb();return new Promise(r=>{const t=db.transaction("h","readwrite");t.objectStore("h").put(v,k);t.oncomplete=()=>r();});}
+async function idbGet(k){try{const db=await idb();return await new Promise(r=>{const q=db.transaction("h").objectStore("h").get(k);q.onsuccess=()=>r(q.result);q.onerror=()=>r(null);});}catch(e){return null;}}
+function xMsg(t,bad){state.xmsg=t;state.xbad=!!bad;render();}
+const num=v=>+v;
+function applyWorkbook(wb){
+  const S=n=>{if(!wb.Sheets[n])throw new Error("Sheet \""+n+"\" is missing in "+XFILE);return XLSX.utils.sheet_to_json(wb.Sheets[n],{defval:""});};
+  const ids=PERSONA_DEFS.map(p=>p.id);
+  const pers=S("Personas"),base=S("Baselines"),apps=S("Apps"),users=S("Users"),tix=S("DeviceTickets"),mig=S("Migrations"),chg=S("Changes");
+  let skipped=0;
+  pers.forEach(r=>{const p=PERSONA_DEFS.find(x=>x.id===r.id);if(!p){skipped++;return;}
+    p.name=String(r.name);p.sub=String(r.sub);p.count=num(r.count);
+    TASKS_AUTO[r.id]=num(r.tasksAutomatedPerWeek);ONBOARD_DAYS[r.id]=num(r.onboardingDays);});
+  base.forEach(r=>{if(ids.indexOf(r.persona)<0){skipped++;return;}
+    const o={};["ramGB","storageGB","cpuScore","bootSec","crashes","freePct","batteryPct","ticketsPer100"].forEach(k=>o[k]=num(r[k]));
+    DEFAULT_BASELINE[r.persona]=o;});
+  state.baselines=JSON.parse(JSON.stringify(DEFAULT_BASELINE));
+  ids.forEach(k=>APPS[k]=[]);
+  apps.forEach(r=>{if(APPS[r.persona])APPS[r.persona].push(String(r.app));else skipped++;});
+  const tByDev={};tix.forEach(t=>{(tByDev[t.deviceId]=tByDev[t.deviceId]||[]).push({number:String(t.number),cat:String(t.cat),
+    short:String(t.short),priority:String(t.priority),state:String(t.state),group:String(t.group),ageDays:num(t.ageDays)});});
+  RAW.forEach(p=>{const d=PERSONA_DEFS.find(x=>x.id===p.id);Object.assign(p,{name:d.name,sub:d.sub,count:d.count,sample:[]});});
+  users.forEach(r=>{const p=RAW.find(x=>x.id===r.persona);if(!p){skipped++;return;}
+    p.sample.push({id:String(r.id),host:String(r.host),user:String(r.user),email:String(r.email),site:String(r.site),model:String(r.model),
+      ramGB:num(r.ramGB),storageGB:num(r.storageGB),freePct:num(r.freePct),cpuScore:num(r.cpuScore),bootSec:num(r.bootSec),
+      crashes:num(r.crashes),batteryPct:num(r.batteryPct),patched:String(r.patched).trim().toLowerCase()==="yes",
+      osBuild:String(r.osBuild),lastSeen:num(r.lastSeen),tickets:tByDev[r.id]||[],
+      installed:String(r.installed).split(";").map(s=>s.trim()).filter(Boolean)});});
+  MIGRATIONS.length=0;mig.forEach(r=>{if(ids.indexOf(r.from)<0||ids.indexOf(r.to)<0){skipped++;return;}MIGRATIONS.push({from:r.from,to:r.to,people:num(r.people)});});
+  state.switches=chg.map(r=>({date:String(r.date),id:String(r.userId),user:String(r.user),from:r.from,to:r.to})).reverse();
+  const empty=RAW.filter(p=>!p.sample.length).map(p=>p.name);
+  return {skipped,empty};
+}
+function workbookFromState(){
+  const wb=XLSX.utils.book_new(),A=(n,rows)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),n);
+  A("ReadMe",[["Persona Fleet Command - data file"],["Keep this file in the same folder as the HTML and xlsx.full.min.js."],
+    ["Persona ids must be one of: DEV, KW, CC, FIELD, EXEC, DS, CRE."],["Users.persona decides which persona a user shows under."],
+    ["Users.patched is Yes or No. Users.installed is a list separated by ; "],
+    ["Changes and Migrations are updated by the page when you apply a persona change."],
+    ["Close this file in Excel before applying a change in the page, or the save will fail."]]);
+  A("Personas",[["id","name","sub","count","tasksAutomatedPerWeek","onboardingDays"]].concat(RAW.map(p=>[p.id,p.name,p.sub,p.count,TASKS_AUTO[p.id],ONBOARD_DAYS[p.id]])));
+  const bk=["ramGB","storageGB","cpuScore","bootSec","crashes","freePct","batteryPct","ticketsPer100"];
+  A("Baselines",[["persona"].concat(bk)].concat(Object.keys(DEFAULT_BASELINE).map(k=>[k].concat(bk.map(x=>DEFAULT_BASELINE[k][x])))));
+  A("Apps",[["persona","app"]].concat(Object.keys(APPS).flatMap(k=>APPS[k].map(a=>[k,a]))));
+  const U=[["id","persona","user","email","host","site","model","ramGB","storageGB","freePct","cpuScore","bootSec","crashes","batteryPct","patched","osBuild","lastSeen","installed"]],
+    T=[["deviceId","number","cat","short","priority","state","group","ageDays"]];
+  RAW.forEach(p=>p.sample.forEach(s=>{U.push([s.id,p.id,s.user,s.email,s.host,s.site,s.model,s.ramGB,s.storageGB,s.freePct,s.cpuScore,s.bootSec,
+    s.crashes,s.batteryPct,s.patched?"Yes":"No",s.osBuild,s.lastSeen,s.installed.join("; ")]);
+    s.tickets.forEach(t=>T.push([s.id,t.number,t.cat,t.short,t.priority,t.state,t.group,t.ageDays]));}));
+  A("Users",U);A("DeviceTickets",T);
+  A("Migrations",[["from","to","people"]].concat(MIGRATIONS.map(m=>[m.from,m.to,m.people])));
+  A("Changes",[["date","userId","user","from","to"]].concat(state.switches.slice().reverse().map(s=>[s.date,s.id,s.user,s.from,s.to])));
+  return wb;
+}
+async function readExcel(){
+  const fh=await dirHandle.getFileHandle(XFILE);const f=await fh.getFile();
+  return applyWorkbook(XLSX.read(await f.arrayBuffer(),{type:"array"}));
+}
+async function writeExcel(){
+  const fh=await dirHandle.getFileHandle(XFILE);const w=await fh.createWritable();
+  await w.write(XLSX.write(workbookFromState(),{type:"array",bookType:"xlsx"}));await w.close();
+}
+async function loadAndShow(){
+  try{const r=await readExcel();state.xsrc=true;
+    if(r.skipped||r.empty.length)xMsg((r.skipped?r.skipped+" rows skipped (unknown persona id). ":"")
+      +(r.empty.length?"No users in: "+r.empty.join(", "):""),true);else xMsg(null);}
+  catch(e){state.xsrc=false;xMsg(e.name==="NotFoundError"?XFILE+" not found in the chosen folder.":"Could not read Excel: "+e.message,true);}
+}
+async function xConnect(){
+  if(typeof XLSX==="undefined")return xMsg("xlsx.full.min.js is missing. Put it in the same folder as this page.",true);
+  if(!window.showDirectoryPicker)return xMsg("This browser cannot open folders. Use Chrome or Edge.",true);
+  try{dirHandle=await window.showDirectoryPicker({mode:"readwrite"});await idbSet("dir",dirHandle);}catch(e){return;}
+  await loadAndShow();
+}
+async function xReconnect(){
+  const h=await idbGet("dir");if(!h)return xConnect();
+  try{if(await h.requestPermission({mode:"readwrite"})!=="granted")return xMsg("Folder permission was not given.",true);}
+  catch(e){return xConnect();}
+  dirHandle=h;await loadAndShow();
+}
+async function xApplySwitch(){
+  const id=state.swUser,to=state.swTo;
+  if(dirHandle){try{await readExcel();}catch(e){return xMsg("Could not read Excel before saving: "+e.message+". Nothing was changed.",true);}}
+  const fromP=RAW.find(p=>p.sample.some(s=>s.id===id));if(!fromP)return xMsg("User not found in the data.",true);
+  const toP=RAW.find(p=>p.id===to),from=fromP.id,dev=fromP.sample.find(s=>s.id===id);
+  const snap=JSON.stringify({f:fromP.sample.map(s=>s.id),m:MIGRATIONS,sw:state.switches});
+  fromP.sample=fromP.sample.filter(s=>s.id!==id);toP.sample.push(dev);
+  fromP.count=Math.max(0,fromP.count-1);toP.count+=1;
+  const mg=MIGRATIONS.find(x=>x.from===from&&x.to===to);if(mg)mg.people++;else MIGRATIONS.push({from,to,people:1});
+  state.switches.unshift({date:new Date().toISOString().slice(0,16).replace("T"," "),id,user:dev.user,from,to});
+  state.swTo="";state.swDone=dev.user+" moved from "+pName(from)+" to "+pName(to);
+  if(dirHandle){try{await writeExcel();state.swDone+=" · saved to "+XFILE;state.xmsg=null;}
+    catch(e){/* undo so page and file stay the same */
+      toP.sample=toP.sample.filter(s=>s.id!==id);fromP.sample.push(dev);fromP.count++;toP.count--;
+      const o=JSON.parse(snap);MIGRATIONS.length=0;o.m.forEach(m=>MIGRATIONS.push(m));state.switches=o.sw;state.swDone=null;
+      return xMsg("Could not save to "+XFILE+". Close the file in Excel and try again. Nothing was changed.",true);}}
+  else state.swDone+=" · not saved (no folder connected)";
+  render();
+}
+
+let tourTimer=null,tourProgTimer=null;
+
+function tourMarkup(step,i){
+  const pct=((i+1)/TOUR.length)*100;
+  const btn=(act,label,title)=>`<button data-act="${act}" title="${title}">${label}</button>`;
+  const title = step.kind==="title" ? `<div class="tour-title"><div>
+      <h1>${step.cap}</h1><p>${step.sub}</p>
+    </div></div>` : "";
+  const cap = step.kind==="title" ? "" : `<div class="tour-cap">
+      <div class="tour-cap-eyebrow">${step.eyebrow||""}</div>
+      <div class="tour-cap-text">${step.cap}</div></div>`;
+  return `<div class="tour-prog" id="tourprog" style="width:${pct}%"></div>${title}${cap}
+    <div class="tour-bar">
+      ${btn("tourprev","‹","Previous step")}
+      ${btn("tourplay",state.tourPaused?"▶":"❚❚",state.tourPaused?"Resume":"Pause")}
+      ${btn("tournext","›","Next step")}
+      <span class="tour-step">${String(i+1).padStart(2,"0")} / ${TOUR.length}</span>
+      <button class="wide" data-act="tourcaps" title="Show or hide captions">CC</button>
+      ${btn("tourstop","✕","Exit tour")}
+    </div>`;
+}
+
+function tourGo(i){
+  clearTimeout(tourTimer);
+  if(i<0) i=0;
+  if(i>=TOUR.length){ tourStop(); return; }
+  state.tourStep=i;
+  const st=TOUR[i], prev=TOUR[i-1]||{};
+  const sameScreen = prev.view===st.view && prev.pid===st.pid && prev.did===st.did
+                     && prev.filter===st.filter && prev.cband===st.cband && prev.tmode===st.tmode
+                     && st.kind!=="title" && prev.kind!=="title";
+  if(st.kind!=="title"){
+    state.view=st.view;
+    if(st.filter) state.filter=st.filter;
+    if(st.view==="landing") state.cband=st.cband!==undefined?st.cband:null;
+    if(st.view==="tickets"){state.tmode=st.tmode||"inc";state.tcat=null;}
+    if(st.pid){ state.pid=st.pid; state.baseFocus=st.pid; }
+    if(st.did){
+      const p=model.find(x=>x.id===st.pid);
+      state.did = st.did==="auto"
+        ? p.devices.slice().sort((a,b)=>a.score-b.score)[0].id
+        : st.did;
+    } else state.did=null;
+    if(!sameScreen) render(); else document.getElementById("tourui").innerHTML=tourMarkup(st,i);
+    if(sameScreen) { /* keep position */ }
+  }
+  document.getElementById("tourui").innerHTML=tourMarkup(st,i);
+  document.body.classList.toggle("captionsoff",!state.tourCaptions);
+
+  if(st.scroll!==undefined){
+    setTimeout(()=>{
+      const marks=document.querySelectorAll("#app .sect");
+      const el=marks[st.scroll];
+      if(el) window.scrollTo({top:Math.max(0,el.getBoundingClientRect().top+window.scrollY-96),behavior:"smooth"});
+    },sameScreen?60:420);
+  }else if(st.kind!=="title" && !sameScreen){
+    window.scrollTo({top:0,behavior:"instant"});
+  }
+  if(!state.tourPaused) tourTimer=setTimeout(()=>tourGo(i+1),st.dur);
+}
+function tourStart(){
+  state.tour=true; state.tourPaused=false; state.tourStep=0;
+  if(state.tourCaptions===undefined) state.tourCaptions=true;
+  document.body.classList.add("tour");
+  tourGo(0);
+}
+function tourStop(){
+  clearTimeout(tourTimer); state.tour=false;
+  document.body.classList.remove("tour","captionsoff");
+  document.getElementById("tourui").innerHTML="";
+  state.view="landing"; state.pid=null; state.did=null; state.filter="all";
+  state.cpid="all"; state.cband=null; state.cq="";
+  state.tmode="inc"; state.tpid="all"; state.tcat=null;
+  render();
+}
+
+/* ============================== SHELL =========================== */
+const NAVS=[["landing","Personas","layers"],["baseline","Baselines","gear"],["tickets","Tickets","ticket"],["movement","Change","swap"],["switch","Switch","swap"]];
+function renderTopbar(){
+  const on=k=>state.view===k||(k==="landing"&&["persona","device"].indexOf(state.view)>=0);
+  const opts=Object.keys(THEMES).map(k=>`<option value="${k}" ${state.theme===k?"selected":""}>${THEMES[k].label}</option>`).join("");
+  document.getElementById("topbar").innerHTML=`
+    <div class="brand"><svg width="26" height="26" viewBox="0 0 26 26">
+        <circle cx="13" cy="13" r="11.4" fill="none" stroke="${C.accent}" stroke-width="1.6"/>
+        <circle cx="13" cy="13" r="11.4" fill="none" stroke="${C.good}" stroke-width="2.6" stroke-dasharray="52 72" stroke-linecap="round" transform="rotate(-90 13 13)"/>
+        <circle cx="13" cy="9.5" r="2.6" fill="${C.text}"/>
+        <path d="M7.6 19.5a5.6 5.2 0 0 1 10.8 0" fill="none" stroke="${C.text}" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <div><div class="brand-name">Persona Fleet Command</div><div class="brand-sub">ENDPOINT EXPERIENCE PORTAL</div></div></div>
+    <div class="nav">${NAVS.map(([k,l,ic])=>`<button class="${on(k)?"on":""}" data-act="go" data-view="${k}">${icon(ic,14)}${l}</button>`).join("")}</div>
+    <div class="marks">
+      <button class="toggle ${state.motion?"on":""}" data-act="motion" title="Animate charts on each view">MOTION</button>
+      <button class="toggle ${state.types?"on":""}" data-act="types" title="Show the chart type used for each visual">CHART NAMES</button>
+      <button class="toggle" data-act="tourstart" title="Play a self-driving walkthrough of every screen — record this">&#9654; TOUR</button>
+      ${state.xsrc?`<button class="toggle on" data-act="xreload" title="Read the Excel file again">DATAVERSE ✓ RELOAD</button>`
+   :`<button class="toggle" data-act="xreconnect" title="Pick the folder that has ${XFILE}">CONNECT DATAVERSE</button>`}
+      <select class="theme-sel" id="themesel">${opts}</select></div>
+    ${state.xmsg?`<div style="position:fixed;left:16px;bottom:16px;z-index:50;max-width:520px;background:var(--panel);border:1px solid ${state.xbad?C.bad:C.good};
+      color:${state.xbad?C.bad:C.good};border-radius:8px;padding:9px 12px;font-size:12px">${state.xmsg}</div>`:""}`;
+  document.getElementById("themesel").addEventListener("change",e=>{state.theme=e.target.value;applyTheme(state.theme);render();});
+}
+function renderCrumbs(){
+  const p=P(),d=D(),c=[{l:"Personas",v:"landing"}];
+  if(state.view==="movement")c.push({l:"Change"});
+  if(state.view==="tickets")c.push({l:"Tickets"});
+  if(state.view==="baseline")c.push({l:"Baselines"});
+  if(state.view==="switch")c.push({l:"Persona change"});
+  if(p&&state.view!=="baseline")c.push({l:p.name,v:"persona",id:p.id});
+  if(d)c.push({l:d.host});
+  const back=state.view!=="landing"?`<button class="backbtn" data-act="back">${icon("back",14)}</button>`:"";
+  const items=c.map((x,i)=>`${i>0?icon("chevron",13,C.faint):""}
+    <button class="${i===c.length-1?"last":""}" ${x.v?`data-act="go" data-view="${x.v}" data-id="${x.id||""}"`:"disabled"}>${x.l}</button>`).join("");
+  document.getElementById("crumbs").innerHTML=back+items;
+}
+function render(){
+  model=buildModel(state.baselines);
+  renderTopbar();renderCrumbs();
+  document.getElementById("app").innerHTML=
+    state.view==="landing"  ? screenLanding()  :
+    state.view==="persona"  ? screenPersona()  :
+    state.view==="device"   ? screenDevice()   :
+    state.view==="movement" ? screenMovement() :
+    state.view==="tickets"   ? screenTickets()   :
+    state.view==="baseline" ? screenBaseline() :
+    state.view==="switch"   ? screenSwitch()   : "";
+  const s=document.getElementById("devsearch");
+  if(s) s.addEventListener("input",e=>{state.q=e.target.value;document.getElementById("devbody").innerHTML=deviceRows(P());});
+  const cs=document.getElementById("csearch");
+  if(cs) cs.addEventListener("input",e=>{state.cq=e.target.value;document.getElementById("cbody").innerHTML=reviewTable();});
+  const cp=document.getElementById("cpsel");
+  if(cp) cp.addEventListener("change",e=>{state.cpid=e.target.value;render();});
+  const tp=document.getElementById("tpsel");
+  if(tp) tp.addEventListener("change",e=>{state.tpid=e.target.value;render();});
+  const su=document.getElementById("swuser");
+  if(su) su.addEventListener("change",e=>{state.swUser=e.target.value;state.swTo="";state.swDone=null;render();});
+  const st=document.getElementById("swto");
+  if(st) st.addEventListener("change",e=>{state.swTo=e.target.value;state.swDone=null;render();});
+  bindSliders();
+  document.body.classList.toggle("motion",state.motion);
+  document.body.classList.toggle("types",state.types);
+  if(state.motion){
+    const cards=document.querySelectorAll("#app .panel, #app .statbox, #app .ring-card");
+    cards.forEach((el,i)=>{el.style.animationDelay=Math.min(i*35,420)+"ms";});
+  }else{
+    document.querySelectorAll("#app [style*='animation-delay']").forEach(el=>el.style.animationDelay="");
+  }
+  animate();
+  if(state.tour){
+    document.getElementById("tourui").innerHTML=tourMarkup(TOUR[state.tourStep],state.tourStep);
+    return;   /* the tour controls scrolling itself */
+  }
+  window.scrollTo({top:0,behavior:"instant"});
+}
+/* Replay every marked element from zero. Purely additive: if motion is
+   off this never runs and the static render is already correct.       */
+function animate(){
+  if(!state.motion) return;
+  d3.selectAll(".anim-arc").each(function(){
+    const el=d3.select(this),i=+el.attr("data-i"),o=+el.attr("data-o"),cr=+el.attr("data-cr"),
+      a0=+el.attr("data-a0"),a1=+el.attr("data-a1"),dl=+el.attr("data-delay")||0;
+    const g=d3.arc().innerRadius(i).outerRadius(o).cornerRadius(cr);
+    el.attr("d",g({startAngle:a0,endAngle:a0}))
+      .transition().delay(dl).duration(850).ease(d3.easeCubicOut)
+      .attrTween("d",()=>t=>g({startAngle:a0,endAngle:a0+(a1-a0)*t}));
+  });
+  d3.selectAll(".anim-bar").each(function(){
+    const el=d3.select(this),y=+el.attr("data-y"),w=+el.attr("data-w"),h=+el.attr("data-h"),
+      dir=el.attr("data-dir"),dl=+el.attr("data-delay")||0;
+    if(dir==="right") el.attr("width",0).transition().delay(dl).duration(700).ease(d3.easeCubicOut).attr("width",w);
+    else el.attr("y",y+h).attr("height",0).transition().delay(dl).duration(700).ease(d3.easeCubicOut).attr("y",y).attr("height",h);
+  });
+  d3.selectAll(".anim-line").each(function(i){
+    let L=0; try{L=this.getTotalLength();}catch(e){return;}
+    if(!L) return;
+    d3.select(this).attr("stroke-dasharray",L+" "+L).attr("stroke-dashoffset",L)
+      .transition().delay(100).duration(1000).ease(d3.easeCubicInOut).attr("stroke-dashoffset",0)
+      .on("end",function(){d3.select(this).attr("stroke-dasharray",null).attr("stroke-dashoffset",null);});
+  });
+  d3.selectAll(".anim-fade").attr("opacity",0).transition().delay(300).duration(600).attr("opacity",1);
+  d3.selectAll(".anim-dot").each(function(d,i){
+    const el=d3.select(this),r=+el.attr("data-r");
+    el.attr("r",0).transition().delay(220+i*11).duration(430).ease(d3.easeBackOut.overshoot(1.6)).attr("r",r);
+  });
+  document.querySelectorAll(".anim-num").forEach(el=>{
+    const to=+el.dataset.to,dec=+(el.dataset.dec||0),pre=el.dataset.pre||"",suf=el.dataset.suf||"";
+    if(!isFinite(to)) return;
+    d3.select(el).transition().duration(900).ease(d3.easeCubicOut).tween("n",function(){
+      const ip=d3.interpolateNumber(0,to);
+      return t=>{const v=ip(t);
+        el.textContent=pre+(dec?v.toFixed(dec):Math.round(v).toLocaleString())+suf;};});
+  });
+  document.querySelectorAll(".bar-fill[data-w]").forEach((el,i)=>{
+    const w=el.dataset.w; el.style.transition="none"; el.style.width="0%";
+    requestAnimationFrame(()=>{el.style.transition="width .7s cubic-bezier(.2,.8,.2,1) "+Math.min(i*30,400)+"ms";
+      el.style.width=w+"%";});
+  });
+}
+
+function bindSliders(){
+  document.querySelectorAll("[data-slider]").forEach(el=>{
+    el.addEventListener("input",e=>{
+      const k=el.dataset.slider,pid=state.baseFocus||model[0].id,v=+e.target.value;
+      state.baselines[pid][k]=v;model=buildModel(state.baselines);
+      const p=model.find(x=>x.id===pid),f=BFIELDS.find(f=>f.k===k),lab=document.getElementById("val-"+k);
+      lab.textContent=k==="storageGB"?gb(v):v+f.unit;
+      lab.style.color=v!==DEFAULT_BASELINE[pid][k]?C.accent:C.text;
+      document.getElementById("impact").innerHTML=baselineImpact(p);
+      ["tiles","charts","tables"].forEach(part=>{
+        const el=document.getElementById("fit"+part);
+        if(el){el.innerHTML=fitPart(part);el.querySelectorAll(".anim-num").forEach(n=>n.classList.remove("anim-num"));}
+      });
+      document.querySelectorAll("#impact .anim-num").forEach(n=>n.classList.remove("anim-num"));
+    });});
+}
+document.addEventListener("click",e=>{
+  const t=e.target.closest("[data-act]");if(!t)return;
+  const a=t.dataset.act;
+  if(a==="persona"){state.view="persona";state.pid=t.dataset.id;state.did=null;state.cat=null;state.q="";}
+  else if(a==="device"){state.view="device";state.did=t.dataset.id;state.raised=null;}
+  else if(a==="go"){state.view=t.dataset.view;
+    if(t.dataset.view==="baseline")state.baseFocus=t.dataset.id||state.pid||model[0].id;
+    if(t.dataset.view==="persona"){state.pid=t.dataset.id||state.pid;state.did=null;}
+    if(t.dataset.view==="landing"){state.pid=null;state.did=null;}}
+  else if(a==="back"){if(state.did){state.did=null;state.view="persona";}else{state.view="landing";state.pid=null;}}
+  else if(a==="filter"){state.filter=t.dataset.k;}
+  else if(a==="tmode"){state.tmode=t.dataset.k;state.tcat=null;}
+  else if(a==="tcat"){const c=t.dataset.cat;state.tcat=state.tcat===c?null:c;}
+  else if(a==="cband"){const k=t.dataset.k;state.cband=state.cband===k?null:k;}
+  else if(a==="cpersona"){const id=t.dataset.id;state.cpid=state.cpid===id?"all":id;}
+  else if(a==="cat"){const c=t.dataset.cat;state.cat=(!c||state.cat===c)?null:c;}
+  else if(a==="basepick"){state.baseFocus=t.dataset.id;}
+  else if(a==="basereset"){const pid=state.baseFocus||model[0].id;state.baselines[pid]=Object.assign({},DEFAULT_BASELINE[pid]);}
+  else if(a==="raise"){state.raised="INC00"+Math.floor(50000+Math.random()*9000);}
+  else if(a==="tourstart"){tourStart();return;}
+  else if(a==="tourstop"){tourStop();return;}
+  else if(a==="tournext"){tourGo(state.tourStep+1);return;}
+  else if(a==="tourprev"){tourGo(state.tourStep-1);return;}
+  else if(a==="tourplay"){state.tourPaused=!state.tourPaused;
+    if(state.tourPaused){clearTimeout(tourTimer);document.getElementById("tourui").innerHTML=tourMarkup(TOUR[state.tourStep],state.tourStep);}
+    else tourGo(state.tourStep);return;}
+  else if(a==="tourcaps"){state.tourCaptions=!state.tourCaptions;
+    document.body.classList.toggle("captionsoff",!state.tourCaptions);return;}
+  else if(a==="swapply"){xApplySwitch();return;}
+  else if(a==="xconnect"){xConnect();return;}
+  else if(a==="xreconnect"){xReconnect();return;}
+  else if(a==="xreload"){if(dirHandle)loadAndShow();return;}
+  else if(a==="swreset"){state.swUser="";state.swTo="";state.swDone=null;}
+  else if(a==="motion"){state.motion=!state.motion;}
+  else if(a==="types"){state.types=!state.types;}
+  render();
+});
+/* Keyboard: space pauses, arrows step, Escape exits. Handy when
+   recording — you can hold a step while you finish a sentence.      */
+document.addEventListener("keydown",e=>{
+  if(!state.tour) return;
+  if(e.code==="Space"){e.preventDefault();
+    state.tourPaused=!state.tourPaused;
+    if(state.tourPaused){clearTimeout(tourTimer);document.getElementById("tourui").innerHTML=tourMarkup(TOUR[state.tourStep],state.tourStep);}
+    else tourGo(state.tourStep);}
+  else if(e.code==="ArrowRight"){e.preventDefault();tourGo(state.tourStep+1);}
+  else if(e.code==="ArrowLeft"){e.preventDefault();tourGo(state.tourStep-1);}
+  else if(e.code==="Escape"){tourStop();}
+  else if(e.code==="KeyC"){state.tourCaptions=!state.tourCaptions;
+    document.body.classList.toggle("captionsoff",!state.tourCaptions);}
+});
+
+applyTheme(state.theme);
+render();
+idbGet("dir").then(h=>{if(state.xsrc)return;if(!h)xMsg("Using built-in demo data. Click CONNECT DATAVERSE and pick the folder with "+XFILE+".");
+  else xMsg("Click CONNECT DATAVERSE to allow access to the folder again.");});
+</script>
+</body>
+</html>

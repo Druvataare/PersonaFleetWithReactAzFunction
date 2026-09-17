@@ -37,3 +37,52 @@ code {
   font-family: var(--mono);
   color: var(--text);
 }
+
+/* Temporary step 3 mock API check. Removed in step 4. */
+main.scaffold {
+  max-width: 1080px;
+  margin-top: 8vh;
+}
+.apicheck {
+  margin-top: 36px;
+}
+.apicheck h2 {
+  font-size: 18px;
+  margin: 0 0 6px;
+}
+.apicheck table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 14px;
+}
+.apicheck th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 400;
+  padding: 8px 10px;
+  border-bottom: 1px solid #232b45;
+}
+.apicheck td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #1b2138;
+  vertical-align: top;
+}
+.apicheck code {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.apicheck .status {
+  font-family: var(--mono);
+  white-space: nowrap;
+}
+.apicheck .status.ok {
+  color: #35d6a5;
+}
+.apicheck .status.error {
+  color: #ff6b7a;
+}

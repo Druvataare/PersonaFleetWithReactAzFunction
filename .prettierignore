@@ -4,5 +4,5 @@ coverage
 package-lock.json
 *.docx
 Persona-Fleet-Command-Architecture.html
-personalfleet.html
+reference/
 apps/web/public/mockServiceWorker.js
