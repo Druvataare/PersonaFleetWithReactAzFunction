@@ -8,7 +8,11 @@ import { Topbar } from "./Topbar.tsx";
 /** Applies preferences that live outside React's tree: theme variables and body classes. */
 function useDocumentPreferences() {
   const { theme, motion, chartNames } = useUi();
-  useEffect(() => applyTheme(theme), [theme]);
+  /* Effects use block bodies: an expression body returns its value, and after
+     minification that value can become a non-function "cleanup" that crashes React. */
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
   useEffect(() => {
     document.body.classList.toggle("motion", motion);
     document.body.classList.toggle("types", chartNames);
@@ -18,7 +22,9 @@ function useDocumentPreferences() {
 export function AppLayout() {
   useDocumentPreferences();
   const { pathname } = useLocation();
-  useEffect(() => window.scrollTo({ top: 0 }), [pathname]);
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [pathname]);
 
   return (
     <>

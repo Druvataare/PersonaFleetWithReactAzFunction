@@ -36,6 +36,10 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Clicks through the minified build in Chrome; blocks the deploy on any browser error.
+      - name: Production smoke test
+        run: npm run smoke
+
       - name: Get Id Token
         id: idtoken
         uses: actions/github-script@v9

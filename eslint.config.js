@@ -15,10 +15,19 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "CallExpression[callee.name=/^use(Layout|Insertion)?Effect$/] > ArrowFunctionExpression[expression=true]",
+          message:
+            "Give effects a block body. An expression body returns its value as the cleanup, which crashes React in production builds.",
+        },
+      ],
     },
   },
   {
-    files: ["**/*.config.{js,ts}"],
+    files: ["**/*.config.{js,ts}", "e2e/**/*.mjs"],
     languageOptions: { globals: globals.node },
   },
 );
