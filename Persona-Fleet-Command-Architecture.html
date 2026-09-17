@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}</style>
+<title>Persona Fleet Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F5F6FA; --surface:#FFFFFF; --sunk:#EDEFF6; --ink:#141A2E; --muted:#586080; --faint:#8A91AB; --line:#DCE0EC;
+  --accent:#3D4FD6;
+  --c-client:#3D4FD6; --c-api:#0B8680; --c-svc:#A86400; --c-fabric:#7442C4; --c-ext:#5C6482;
+  --good:#12805C; --warn:#A86400;
+  --display:"Schibsted Grotesk","Segoe UI",system-ui,sans-serif;
+  --sans:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0B0F1D; --surface:#121830; --sunk:#0F1428; --ink:#E7EAF6; --muted:#9AA2C2; --faint:#6B7394; --line:#252D4A;
+    --accent:#8B97FF;
+    --c-client:#8B97FF; --c-api:#3CCBC0; --c-svc:#E8AB45; --c-fabric:#B78EFF; --c-ext:#9AA2C2;
+    --good:#43D29E; --warn:#E8AB45;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B0F1D; --surface:#121830; --sunk:#0F1428; --ink:#E7EAF6; --muted:#9AA2C2; --faint:#6B7394; --line:#252D4A;
+  --accent:#8B97FF;
+  --c-client:#8B97FF; --c-api:#3CCBC0; --c-svc:#E8AB45; --c-fabric:#B78EFF; --c-ext:#9AA2C2;
+  --good:#43D29E; --warn:#E8AB45;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.62 var(--sans);-webkit-font-smoothing:antialiased;padding-inline:20px}
+.shell{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr);gap:48px;padding-block:40px 80px}
+@media (min-width:1080px){.shell{grid-template-columns:210px minmax(0,1fr)}}
+nav.toc{display:none}
+@media (min-width:1080px){
+  nav.toc{display:block;position:sticky;top:calc(env(safe-area-inset-top,0px) + 32px);align-self:start}
+}
+.toc h4{font:500 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin:0 0 14px}
+.toc ol{list-style:none;margin:0;padding:0;display:grid;gap:2px;counter-reset:t}
+.toc a{display:flex;gap:10px;padding:6px 10px;border-radius:6px;color:var(--muted);text-decoration:none;font-size:13.5px;line-height:1.35}
+.toc a:hover{background:var(--surface);color:var(--ink)}
+.toc a span{font:500 11px/1.6 var(--mono);color:var(--faint)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+main{min-width:0}
+header.hero{padding-bottom:28px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.kicker{font:500 11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+h1{font:700 clamp(30px,4.4vw,46px)/1.08 var(--display);letter-spacing:-.025em;margin:14px 0 14px;text-wrap:balance}
+.lede{font-size:17px;color:var(--muted);max-width:66ch;margin:0}
+.meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:20px;font:12px/1.4 var(--mono);color:var(--faint)}
+.meta b{color:var(--muted);font-weight:500}
+
+section{padding-top:44px}
+h2{font:600 25px/1.2 var(--display);letter-spacing:-.015em;margin:0 0 6px;display:flex;gap:12px;align-items:baseline;text-wrap:balance}
+h2 .n{font:500 13px/1 var(--mono);color:var(--faint)}
+h3{font:600 16px/1.3 var(--display);margin:28px 0 10px}
+p{margin:0 0 14px;max-width:72ch}
+.sub{color:var(--muted);margin-bottom:22px}
+code{font:13px/1 var(--mono);background:var(--sunk);border:1px solid var(--line);padding:1px 5px;border-radius:4px;white-space:nowrap}
+td code{white-space:normal;word-break:break-word}
+ul,ol.steps{margin:0 0 16px;padding-left:20px;max-width:74ch}
+li{margin:5px 0}
+li::marker{color:var(--faint)}
+
+/* layered stack */
+.stack{display:grid;gap:8px;margin-top:20px}
+.layer{display:grid;grid-template-columns:minmax(0,190px) minmax(0,1fr);gap:18px;background:var(--surface);border:1px solid var(--line);
+  border-left:4px solid var(--lc);border-radius:8px;padding:14px 18px}
+.layer .k{font:500 11px/1.45 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--lc);padding-top:2px}
+.layer .v{font-size:14.5px}
+@media (max-width:640px){.layer{grid-template-columns:minmax(0,1fr);gap:4px}}
+
+.why{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin:22px 0 8px}
+.why div{border-top:2px solid var(--ink);padding-top:10px}
+.why b{display:block;font:600 14.5px/1.3 var(--display);margin-bottom:4px}
+.why span{font-size:14px;color:var(--muted)}
+
+.note{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin:18px 0;max-width:80ch;font-size:14.5px}
+.note b{font-family:var(--display)}
+
+/* figures */
+figure{margin:22px 0 10px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px}
+.scroll{overflow-x:auto}
+figure svg{display:block;width:100%;min-width:780px;height:auto}
+figcaption{font-size:13px;color:var(--muted);margin-top:12px;display:flex;flex-wrap:wrap;gap:6px 18px}
+.key{display:inline-flex;align-items:center;gap:6px}
+.key i{width:10px;height:10px;border-radius:3px;background:var(--kc)}
+svg text{font-family:var(--sans)}
+.grp{fill:color-mix(in srgb,var(--lc) 6%,var(--surface));stroke:var(--lc);stroke-width:1.2}
+.chip{fill:var(--surface);stroke:color-mix(in srgb,var(--lc) 55%,var(--line));stroke-width:1}
+.gl{font:600 10.5px var(--mono);letter-spacing:.09em;fill:var(--lc)}
+.t{font-size:13.5px;font-weight:600;fill:var(--ink)}
+.ts{font-size:11.5px;fill:var(--muted)}
+.al{font-size:11.5px;fill:var(--muted)}
+.edge{stroke:var(--muted);stroke-width:1.4;fill:none}
+.edge.dash{stroke-dasharray:5 4}
+.life{stroke:var(--line);stroke-width:1.2;stroke-dasharray:4 4}
+.head{fill:var(--muted)}
+.lc-client{--lc:var(--c-client)} .lc-api{--lc:var(--c-api)} .lc-svc{--lc:var(--c-svc)}
+.lc-fabric{--lc:var(--c-fabric)} .lc-ext{--lc:var(--c-ext)}
+
+/* tables */
+.tw{overflow-x:auto;margin:14px 0 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+th{font:500 10.5px/1.3 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--faint);text-align:left;padding:11px 14px;background:var(--sunk);border-bottom:1px solid var(--line)}
+td{padding:10px 14px;border-top:1px solid var(--line);vertical-align:top}
+tr:first-child td{border-top:none}
+td:first-child{font-weight:500}
+.verb{font:500 10.5px/1 var(--mono);padding:3px 6px;border-radius:4px;margin-right:6px;display:inline-block;vertical-align:1px}
+.get{color:var(--c-api);background:color-mix(in srgb,var(--c-api) 12%,transparent)}
+.post{color:var(--c-svc);background:color-mix(in srgb,var(--c-svc) 13%,transparent)}
+.put{color:var(--c-fabric);background:color-mix(in srgb,var(--c-fabric) 13%,transparent)}
+td.path{font:13px/1.5 var(--mono);font-weight:400;word-break:break-word}
+
+/* phases */
+.phases{list-style:none;padding:0;margin:18px 0;display:grid;gap:0;max-width:none;counter-reset:ph}
+.phases li{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:14px;padding:14px 0;border-top:1px solid var(--line);margin:0;counter-increment:ph}
+.phases li::before{content:counter(ph,decimal-leading-zero);font:500 13px/1.5 var(--mono);color:var(--accent)}
+.phases b{font-family:var(--display);font-weight:600;display:block}
+.phases span{color:var(--muted);font-size:14px}
+.phases em{font:normal 500 12px/1.5 var(--mono);color:var(--faint);white-space:nowrap}
+@media (max-width:560px){.phases li{grid-template-columns:34px minmax(0,1fr)}.phases em{grid-column:2}}
+
+.decisions{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:18px}
+.decisions div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;font-size:14px}
+.decisions b{display:block;font:600 14.5px/1.3 var(--display);margin-bottom:6px}
+.decisions span{color:var(--muted)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);font:12px/1.5 var(--mono);color:var(--faint)}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+html{scroll-behavior:smooth}
+section{scroll-margin-top:16px}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" class="head"/>
+    </marker>
+  </defs>
+</svg>
+
+<div class="shell">
+<nav class="toc" aria-label="Contents">
+  <h4>Contents</h4>
+  <ol>
+    <li><a href="#stack"><span>01</span>Recommended stack</a></li>
+    <li><a href="#system"><span>02</span>System map</a></li>
+    <li><a href="#frontend"><span>03</span>Frontend</a></li>
+    <li><a href="#api"><span>04</span>API and middleware</a></li>
+    <li><a href="#data"><span>05</span>Data platform</a></li>
+    <li><a href="#security"><span>06</span>Security and networking</a></li>
+    <li><a href="#devops"><span>07</span>DevOps and environments</a></li>
+    <li><a href="#phases"><span>08</span>Delivery phases</a></li>
+    <li><a href="#decisions"><span>09</span>Open decisions</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="kicker">Architecture proposal</div>
+  <h1>Persona Fleet Command on React, Azure and Microsoft Fabric</h1>
+  <p class="lede">How the prototype becomes a production app: a React front end on Azure Static Web Apps, a TypeScript API on Azure Functions, and Microsoft Fabric for both analytics and writeback.</p>
+  <div class="meta"><span><b>Status</b> Draft for review</span><span><b>Date</b> 17 Sep 2026</span><span><b>Source</b> personalfleet.html prototype</span></div>
+</header>
+
+<!-- 01 -->
+<section id="stack">
+  <h2><span class="n">01</span>Recommended stack</h2>
+  <p class="sub">One choice per layer. The stripe colours match the layers in the diagrams below.</p>
+  <div class="stack">
+    <div class="layer lc-client"><div class="k">Frontend</div><div class="v">React 19 + TypeScript + Vite, hosted on <b>Azure Static Web Apps (Standard)</b></div></div>
+    <div class="layer lc-api"><div class="k">API / middleware</div><div class="v">An API written for this front end on <b>Azure Functions</b> (Flex Consumption, Node 20, TypeScript), attached as the Static Web App's <b>linked backend</b>. Add Azure API Management only if other teams need the API.</div></div>
+    <div class="layer lc-svc"><div class="k">Caching &amp; async</div><div class="v"><b>Azure Managed Redis</b> for read caching. <b>Azure Service Bus</b> + <b>Durable Functions</b> for multi-step writes such as a persona switch.</div></div>
+    <div class="layer lc-fabric"><div class="k">Reads</div><div class="v"><b>Fabric Warehouse</b> (or the Lakehouse SQL analytics endpoint) with a gold layer shaped for each screen.</div></div>
+    <div class="layer lc-fabric"><div class="k">Writeback</div><div class="v"><b>SQL database in Fabric</b> for baselines, persona changes, exceptions and the audit log. It copies itself to OneLake automatically, so analytics sees writes almost immediately.</div></div>
+    <div class="layer lc-fabric"><div class="k">Ingestion</div><div class="v">Fabric Data Factory pipelines and Copy jobs, Spark notebooks, medallion Lakehouse (bronze → silver → gold).</div></div>
+    <div class="layer lc-ext"><div class="k">Identity</div><div class="v">Microsoft Entra ID through Static Web Apps sign-in. The API reaches Fabric with a <b>managed identity</b>. Secrets live in <b>Key Vault</b>.</div></div>
+    <div class="layer lc-ext"><div class="k">Delivery</div><div class="v">Application Insights, Bicep via <code>azd</code>, GitHub Actions, Fabric Git integration and deployment pipelines.</div></div>
+  </div>
+
+  <h3>Why put an API between React and Fabric</h3>
+  <div class="why">
+    <div><b>Writes fan out</b><span>Switch, "Raise provisioning request" and baseline edits touch Fabric, ServiceNow, Intune and Entra.</span></div>
+    <div><b>Data volume</b><span>Mapping confidence alone covers about 12,000 title rows. Aggregation belongs on the server.</span></div>
+    <div><b>Security</b><span>Secrets and role checks stay out of the browser.</span></div>
+  </div>
+  <div class="note"><b>Why TypeScript, not .NET, for the API.</b> The scoring logic from the prototype (<code>scoreDevice</code>, <code>buildModel</code>, <code>fitClass</code>) becomes one shared package. The browser uses it for the live what-if sliders and the API uses the same code, so the numbers always agree.</div>
+</section>
+
+<!-- 02 -->
+<section id="system">
+  <h2><span class="n">02</span>System map</h2>
+  <p class="sub">Requests flow top to bottom. Solid arrows are live calls; dashed arrows are scheduled data ingestion.</p>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 1000 640" role="img" aria-label="System map: browser and Entra ID, Azure Static Web Apps, Azure Functions with supporting services, Microsoft Fabric and external systems">
+      <!-- row 1 -->
+      <g class="lc-client"><rect class="grp" x="40" y="20" width="400" height="56" rx="8"/>
+        <text class="t" x="60" y="44">Team members' browsers</text><text class="ts" x="60" y="63">Fleet managers, EUC engineers, persona admins</text></g>
+      <g class="lc-ext"><rect class="grp" x="560" y="20" width="400" height="56" rx="8"/>
+        <text class="t" x="580" y="44">Microsoft Entra ID</text><text class="ts" x="580" y="63">Roles: Fleet.Viewer · Baseline.Editor · Persona.Admin</text></g>
+      <path class="edge" d="M440 48 H558" marker-end="url(#arr)"/>
+      <text class="al" x="499" y="40" text-anchor="middle">OIDC sign-in</text>
+
+      <!-- SWA -->
+      <path class="edge" d="M240 76 V118" marker-end="url(#arr)"/>
+      <text class="al" x="250" y="102">HTTPS</text>
+      <g class="lc-client"><rect class="grp" x="40" y="120" width="920" height="110" rx="10"/>
+        <text class="gl" x="58" y="143">AZURE STATIC WEB APPS · STANDARD</text>
+        <rect class="chip" x="56" y="158" width="280" height="54" rx="6"/><text class="t" x="72" y="181">React 19 SPA</text><text class="ts" x="72" y="199">Vite build · TanStack Query · D3</text>
+        <rect class="chip" x="352" y="158" width="260" height="54" rx="6"/><text class="t" x="368" y="181">Global CDN</text><text class="ts" x="368" y="199">Preview environment per pull request</text>
+        <rect class="chip" x="628" y="158" width="316" height="54" rx="6"/><text class="t" x="644" y="181">/api/* → linked backend</text><text class="ts" x="644" y="199">Same origin · role guards · CSP headers</text></g>
+
+      <!-- Functions -->
+      <path class="edge" d="M340 230 V278" marker-end="url(#arr)"/>
+      <text class="al" x="350" y="258">user + roles header</text>
+      <g class="lc-api"><rect class="grp" x="40" y="280" width="600" height="130" rx="10"/>
+        <text class="gl" x="58" y="303">AZURE FUNCTIONS · FLEX CONSUMPTION · NODE / TS</text>
+        <rect class="chip" x="56" y="318" width="176" height="76" rx="6"/><text class="t" x="72" y="345">Read API</text><text class="ts" x="72" y="364">Pre-aggregated</text><text class="ts" x="72" y="380">per screen</text>
+        <rect class="chip" x="248" y="318" width="176" height="76" rx="6"/><text class="t" x="264" y="345">Write API</text><text class="ts" x="264" y="364">Validate · audit</text><text class="ts" x="264" y="380">returns 202</text>
+        <rect class="chip" x="440" y="318" width="184" height="76" rx="6"/><text class="t" x="456" y="345">Durable Functions</text><text class="ts" x="456" y="364">Persona switch</text><text class="ts" x="456" y="380">Provisioning requests</text></g>
+
+      <!-- services -->
+      <path class="edge" d="M640 345 H678" marker-end="url(#arr)"/>
+      <g class="lc-svc"><rect class="grp" x="680" y="280" width="280" height="130" rx="10"/>
+        <text class="gl" x="698" y="303">SUPPORTING SERVICES</text>
+        <rect class="chip" x="696" y="318" width="124" height="36" rx="6"/><text class="t" x="710" y="341" style="font-size:12.5px">Managed Redis</text>
+        <rect class="chip" x="828" y="318" width="116" height="36" rx="6"/><text class="t" x="842" y="341" style="font-size:12.5px">Service Bus</text>
+        <rect class="chip" x="696" y="362" width="124" height="36" rx="6"/><text class="t" x="710" y="385" style="font-size:12.5px">Key Vault</text>
+        <rect class="chip" x="828" y="362" width="116" height="36" rx="6"/><text class="t" x="842" y="385" style="font-size:12.5px">App Insights</text></g>
+
+      <!-- to Fabric -->
+      <path class="edge" d="M144 394 V496" marker-end="url(#arr)"/>
+      <text class="al" x="154" y="436">SQL · managed identity</text>
+      <path class="edge" d="M336 394 V446 H488 V496" marker-end="url(#arr)"/>
+      <text class="al" x="400" y="440">writes</text>
+      <path class="edge" d="M532 394 V430 H820 V458" marker-end="url(#arr)"/>
+      <text class="al" x="676" y="424" text-anchor="middle">Graph · ServiceNow Table API</text>
+
+      <!-- Fabric -->
+      <g class="lc-fabric"><rect class="grp" x="40" y="460" width="600" height="160" rx="10"/>
+        <text class="gl" x="58" y="483">MICROSOFT FABRIC · F-SKU CAPACITY</text>
+        <rect class="chip" x="56" y="498" width="280" height="52" rx="6"/><text class="t" x="72" y="520">Warehouse</text><text class="ts" x="72" y="538">Gold views for each screen</text>
+        <rect class="chip" x="352" y="498" width="272" height="52" rx="6"/><text class="t" x="368" y="520">SQL database</text><text class="ts" x="368" y="538">Baselines · changes · audit</text>
+        <rect class="chip" x="56" y="560" width="568" height="44" rx="6"/><text class="t" x="72" y="587" style="font-size:12.5px">Data Factory → Lakehouse bronze → silver → gold</text><text class="ts" x="608" y="587" text-anchor="end">SQL database mirrors into OneLake</text></g>
+
+      <!-- External -->
+      <g class="lc-ext"><rect class="grp" x="680" y="460" width="280" height="160" rx="10"/>
+        <text class="gl" x="698" y="483">EXTERNAL SYSTEMS</text>
+        <rect class="chip" x="696" y="496" width="248" height="34" rx="6"/><text class="t" x="712" y="518" style="font-size:12.5px">ServiceNow</text>
+        <rect class="chip" x="696" y="538" width="248" height="34" rx="6"/><text class="t" x="712" y="560" style="font-size:12.5px">Microsoft Graph · Entra groups</text>
+        <rect class="chip" x="696" y="580" width="248" height="34" rx="6"/><text class="t" x="712" y="602" style="font-size:12.5px">Intune · Endpoint Analytics</text></g>
+      <path class="edge dash" d="M694 597 H626" marker-end="url(#arr)"/>
+    </svg>
+    </div>
+    <figcaption>
+      <span class="key lc-client" style="--kc:var(--c-client)"><i></i>Client &amp; hosting</span>
+      <span class="key" style="--kc:var(--c-api)"><i></i>API</span>
+      <span class="key" style="--kc:var(--c-svc)"><i></i>Supporting services</span>
+      <span class="key" style="--kc:var(--c-fabric)"><i></i>Fabric</span>
+      <span class="key" style="--kc:var(--c-ext)"><i></i>Identity &amp; external</span>
+    </figcaption>
+  </figure>
+</section>
+
+<!-- 03 -->
+<section id="frontend">
+  <h2><span class="n">03</span>Frontend</h2>
+  <p class="sub">React on Azure Static Web Apps. The prototype's D3 charts and theme tokens carry over; the Excel link goes away.</p>
+  <div class="tw"><table>
+    <thead><tr><th style="width:170px">Concern</th><th>Choice</th></tr></thead>
+    <tbody>
+      <tr><td>Build</td><td>Vite, TypeScript (strict), ESLint, Prettier</td></tr>
+      <tr><td>Routing</td><td>React Router: <code>/personas</code>, <code>/personas/:pid</code>, <code>/personas/:pid/devices/:did</code>, <code>/baselines/:pid?</code>, <code>/tickets</code>, <code>/change</code>, <code>/switch</code></td></tr>
+      <tr><td>Server state</td><td><b>TanStack Query</b>: caching, background refresh, optimistic updates for writes</td></tr>
+      <tr><td>UI state</td><td><b>Zustand</b>: theme, tour, motion, chart names, filters</td></tr>
+      <tr><td>Charts</td><td><b>D3</b> for scales and maths. Each chart (<code>PersonaRing</code>, <code>PillarGauge</code>, <code>FitStack</code>, <code>MigrationFlow</code> …) becomes a React component rendering SVG, with <code>d3-transition</code> in <code>useEffect</code> for motion.</td></tr>
+      <tr><td>Styling</td><td>CSS variables (the prototype's <code>THEMES</code> become token files) + CSS Modules</td></tr>
+      <tr><td>Tables</td><td>TanStack Table + TanStack Virtual for the review queue and device lists</td></tr>
+      <tr><td>Validation</td><td>Zod schemas shared with the API</td></tr>
+      <tr><td>Auth</td><td>Static Web Apps built-in <code>/.auth/me</code> and <code>/.auth/login/aad</code>; no MSAL needed</td></tr>
+      <tr><td>Telemetry</td><td>Application Insights JS SDK with the React plugin</td></tr>
+      <tr><td>Testing</td><td>Vitest, React Testing Library, <b>MSW</b> (the prototype's demo data becomes the mock layer), Playwright</td></tr>
+    </tbody></table></div>
+
+  <h3>Prototype screens → React components</h3>
+  <div class="tw"><table>
+    <thead><tr><th style="width:36%">In the prototype</th><th>In React</th></tr></thead>
+    <tbody>
+      <tr><td><code>screenLanding</code> + <code>confidenceBlock</code></td><td><code>PersonasPage</code> → <code>PersonaGrid</code>, <code>MappingConfidence</code>, <code>ReviewQueue</code></td></tr>
+      <tr><td><code>screenBaseline</code> + <code>fitBlock</code></td><td><code>BaselinesPage</code> → <code>BaselineSliders</code>, <code>LiveImpact</code>, <code>FitTiles</code>, <code>FitCharts</code>, <code>ComponentHeatTable</code></td></tr>
+      <tr><td><code>screenTickets</code></td><td><code>TicketsPage</code>, with incidents / requests as part of the query key</td></tr>
+      <tr><td><code>screenMovement</code></td><td><code>ChangePage</code> → <code>MigrationFlow</code>, <code>ExceptionBars</code></td></tr>
+      <tr><td><code>screenSwitch</code></td><td><code>SwitchWizard</code>: three steps, then a <code>POST /persona-changes</code> mutation</td></tr>
+      <tr><td><code>screenPersona</code> / <code>screenDevice</code></td><td><code>PersonaDetailPage</code> / <code>DevicePage</code></td></tr>
+      <tr><td><code>TOUR</code></td><td><code>TourProvider</code> driven by JSON config, navigating with the router</td></tr>
+      <tr><td>Excel link (<code>xConnect</code>, <code>writeExcel</code>)</td><td><b>Removed.</b> Replaced by the API and Fabric SQL database.</td></tr>
+    </tbody></table></div>
+
+  <div class="note"><b>Keeping the baseline sliders instant.</b> The browser fetches compact device vectors per persona (RAM, storage, CPU, boot, free disk, battery, crashes, patched, OS): about 12,000 rows, well under 1 MB gzipped. It re-scores locally with the shared <code>@pfc/scoring</code> package. <b>Save</b> sends a draft baseline to the API.</div>
+
+  <h3>staticwebapp.config.json</h3>
+  <ul>
+    <li><code>navigationFallback</code> to <code>index.html</code> for client-side routes.</li>
+    <li>Route rules: writes to <code>/api/baselines*</code> need <code>Baseline.Editor</code>; <code>/api/persona-changes*</code> needs <code>Persona.Admin</code>.</li>
+    <li>Custom Entra app registration (Standard plan) plus a role function mapping Entra app roles to Static Web App roles.</li>
+    <li>Security headers: CSP, HSTS, <code>X-Content-Type-Options</code>.</li>
+  </ul>
+</section>
+
+<!-- 04 -->
+<section id="api">
+  <h2><span class="n">04</span>API and middleware</h2>
+  <p class="sub">Azure Functions v4 on Node 20 and TypeScript, Flex Consumption with VNet integration and always-ready instances, system-assigned managed identity.</p>
+  <p><b>Main libraries:</b> <code>mssql</code> with <code>DefaultAzureCredential</code> tokens for Fabric SQL endpoints · <code>zod</code> · <code>@azure/service-bus</code> · <code>durable-functions</code> · <code>@microsoft/microsoft-graph-client</code> · <code>@azure/keyvault-secrets</code> · <code>ioredis</code></p>
+
+  <h3>Endpoints</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Endpoint</th><th style="width:28%">Reads or writes</th><th style="width:18%">Screen</th></tr></thead>
+    <tbody>
+      <tr><td class="path"><span class="verb get">GET</span>/api/personas/summary</td><td><code>gold.vw_persona_health</code></td><td>Personas</td></tr>
+      <tr><td class="path"><span class="verb get">GET</span>/api/mapping/summary?persona=</td><td><code>gold.vw_title_mapping_agg</code></td><td>Personas</td></tr>
+      <tr><td class="path"><span class="verb get">GET</span>/api/mapping/review?band=&amp;q=&amp;page=</td><td><code>gold.job_title_mapping</code></td><td>Review queue</td></tr>
+      <tr><td class="path"><span class="verb get">GET</span>/api/personas/{pid}</td><td>Pillars, trend, histograms, ticket and estate mix</td><td>Persona</td></tr>
+      <tr><td class="path"><span class="verb get">GET</span>/api/personas/{pid}/devices?q=&amp;cat=&amp;page=</td><td><code>gold.device_scored</code></td><td>Persona</td></tr>
+      <tr><td class="path"><span class="verb get">GET</span>/api/devices/{did}</td><td>Device, tickets, app entitlement</td><td>Device</td></tr>
+      <tr><td class="path"><span class="verb get">GET</span>/api/baselines · /api/fleet/vectors?persona=</td><td>SQL database / Warehouse</td><td>Baselines</td></tr>
+      <tr><td class="path"><span class="verb put">PUT</span>/api/baselines/{pid} <span class="verb post" style="margin-left:6px">POST</span>…/publish</td><td>SQL database, versioned and audited</td><td>Baselines</td></tr>
+      <tr><td class="path"><span class="verb get">GET</span>/api/tickets/summary?type=inc|req&amp;persona=&amp;cat=</td><td><code>gold.fact_ticket</code></td><td>Tickets</td></tr>
+      <tr><td class="path"><span class="verb get">GET</span>/api/change/migrations · /api/change/exceptions</td><td>Warehouse / SQL database</td><td>Change</td></tr>
+      <tr><td class="path"><span class="verb post">POST</span>/api/persona-changes/preview</td><td>Shared scoring package</td><td>Switch</td></tr>
+      <tr><td class="path"><span class="verb post">POST</span>/api/persona-changes → 202 + status URL</td><td>SQL database + Service Bus</td><td>Switch</td></tr>
+      <tr><td class="path"><span class="verb post">POST</span>/api/devices/{did}/provisioning-requests</td><td>Service Bus → ServiceNow</td><td>Device</td></tr>
+    </tbody></table></div>
+
+  <h3>Persona switch, end to end</h3>
+  <p>The one flow that crosses every system. It runs as a Durable Functions orchestration so each step can retry or be compensated, replacing the prototype's hand-written undo in <code>xApplySwitch</code>.</p>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 1000 430" role="img" aria-label="Sequence diagram of a persona switch across the SPA, API, SQL database, Durable Functions, Graph and Intune, and ServiceNow">
+      <g class="lc-client"><rect class="grp" x="12" y="14" width="136" height="42" rx="7"/><text class="t" x="80" y="40" text-anchor="middle">React SPA</text></g>
+      <g class="lc-api"><rect class="grp" x="182" y="14" width="136" height="42" rx="7"/><text class="t" x="250" y="40" text-anchor="middle">Write API</text></g>
+      <g class="lc-fabric"><rect class="grp" x="352" y="14" width="136" height="42" rx="7"/><text class="t" x="420" y="40" text-anchor="middle">SQL database</text></g>
+      <g class="lc-svc"><rect class="grp" x="522" y="14" width="136" height="42" rx="7"/><text class="t" x="590" y="40" text-anchor="middle">Durable Functions</text></g>
+      <g class="lc-ext"><rect class="grp" x="692" y="14" width="136" height="42" rx="7"/><text class="t" x="760" y="40" text-anchor="middle">Graph · Intune</text></g>
+      <g class="lc-ext"><rect class="grp" x="852" y="14" width="136" height="42" rx="7"/><text class="t" x="920" y="40" text-anchor="middle">ServiceNow</text></g>
+      <path class="life" d="M80 56 V420 M250 56 V420 M420 56 V420 M590 56 V420 M760 56 V420 M920 56 V420"/>
+
+      <text class="al" x="165" y="90" text-anchor="middle">1 · POST /persona-changes</text>
+      <path class="edge" d="M80 98 H248" marker-end="url(#arr)"/>
+      <text class="al" x="335" y="126" text-anchor="middle">2 · insert, status Pending</text>
+      <path class="edge" d="M250 134 H418" marker-end="url(#arr)"/>
+      <text class="al" x="420" y="162" text-anchor="middle">3 · enqueue via Service Bus</text>
+      <path class="edge" d="M250 170 H588" marker-end="url(#arr)"/>
+      <text class="al" x="165" y="198" text-anchor="middle">4 · 202 + status URL</text>
+      <path class="edge dash" d="M250 206 H82" marker-end="url(#arr)"/>
+
+      <text class="al" x="675" y="242" text-anchor="middle">5 · move persona group</text>
+      <path class="edge" d="M590 250 H758" marker-end="url(#arr)"/>
+      <text class="ts" x="768" y="274">app assignments follow</text>
+      <text class="al" x="755" y="306" text-anchor="middle">6 · RITM if below new baseline</text>
+      <path class="edge" d="M590 314 H918" marker-end="url(#arr)"/>
+      <text class="al" x="505" y="342" text-anchor="middle">7 · Completed or Failed</text>
+      <path class="edge" d="M590 350 H422" marker-end="url(#arr)"/>
+      <text class="al" x="165" y="388" text-anchor="middle">8 · poll status</text>
+      <path class="edge" d="M80 396 H248" marker-end="url(#arr)"/>
+    </svg>
+    </div>
+    <figcaption>Steps 1–4 return in milliseconds. Steps 5–7 run in the background; dashed arrows are responses.</figcaption>
+  </figure>
+
+  <h3>Patterns</h3>
+  <ul>
+    <li><b>Caching:</b> Redis cache-aside on reads, time-to-live matched to the gold refresh (for example 15 minutes), keys cleared when a baseline is published.</li>
+    <li><b>Idempotency:</b> writes accept an <code>Idempotency-Key</code> header.</li>
+    <li><b>Authorisation:</b> read <code>x-ms-client-principal</code>, check roles, record the user in <code>audit_log</code>.</li>
+    <li><b>API Management (optional):</b> add Basic v2 or Standard v2 when outside consumers such as a ServiceNow widget or Power Automate need the API.</li>
+  </ul>
+
+  <h3>Alternatives considered</h3>
+  <div class="tw"><table>
+    <thead><tr><th style="width:32%">Option</th><th>Why not the primary path</th></tr></thead>
+    <tbody>
+      <tr><td>Fabric API for GraphQL, called from the SPA</td><td>Workable for read-only dashboards, but weak for aggregation-heavy screens and for coordinating ServiceNow, Graph and Intune.</td></tr>
+      <tr><td>Fabric User Data Functions</td><td>Fine for simple writeback; this app needs async orchestration across several systems.</td></tr>
+      <tr><td>Power BI Embedded</td><td>Loses the custom D3 experience. Keep it for ad-hoc analysis.</td></tr>
+    </tbody></table></div>
+</section>
+
+<!-- 05 -->
+<section id="data">
+  <h2><span class="n">05</span>Data platform</h2>
+  <p class="sub">Microsoft Fabric holds both the analytical model and the app's own writes, and joins them without extra pipelines.</p>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 1000 310" role="img" aria-label="Data flow from Intune, Endpoint Analytics, ServiceNow and HR through Data Factory, bronze, silver and gold layers to the API, with the SQL database mirroring back into OneLake">
+      <g class="lc-ext">
+        <rect class="grp" x="20" y="24" width="190" height="48" rx="7"/><text class="t" x="34" y="44" style="font-size:12.5px">Intune / Graph</text><text class="ts" x="34" y="62">every 4 hours</text>
+        <rect class="grp" x="20" y="86" width="190" height="48" rx="7"/><text class="t" x="34" y="106" style="font-size:12.5px">Endpoint Analytics</text><text class="ts" x="34" y="124">daily</text>
+        <rect class="grp" x="20" y="148" width="190" height="48" rx="7"/><text class="t" x="34" y="168" style="font-size:12.5px">ServiceNow</text><text class="ts" x="34" y="186">hourly, incremental</text>
+        <rect class="grp" x="20" y="210" width="190" height="48" rx="7"/><text class="t" x="34" y="230" style="font-size:12.5px">HR feed / Entra</text><text class="ts" x="34" y="248">daily</text>
+      </g>
+      <path class="edge dash" d="M210 48 C236 48 236 150 258 150 M210 110 C236 110 236 150 258 150 M210 172 C236 172 236 150 258 150 M210 234 C236 234 236 150 258 150"/>
+      <path class="edge dash" d="M250 150 H258" marker-end="url(#arr)"/>
+
+      <g class="lc-fabric">
+        <rect class="grp" x="260" y="112" width="120" height="76" rx="8"/><text class="t" x="320" y="146" text-anchor="middle">Data Factory</text><text class="ts" x="320" y="164" text-anchor="middle">pipelines</text>
+        <rect class="chip" x="420" y="112" width="120" height="76" rx="8"/><text class="t" x="480" y="146" text-anchor="middle">Bronze</text><text class="ts" x="480" y="164" text-anchor="middle">raw copies</text>
+        <rect class="chip" x="580" y="112" width="120" height="76" rx="8"/><text class="t" x="640" y="146" text-anchor="middle">Silver</text><text class="ts" x="640" y="164" text-anchor="middle">conformed</text>
+        <rect class="grp" x="740" y="112" width="120" height="76" rx="8"/><text class="t" x="800" y="146" text-anchor="middle">Gold</text><text class="ts" x="800" y="164" text-anchor="middle">Warehouse</text>
+        <rect class="chip" x="590" y="20" width="250" height="46" rx="8" style="stroke-dasharray:4 3"/><text class="t" x="715" y="40" text-anchor="middle" style="font-size:12.5px">Spark notebooks</text><text class="ts" x="715" y="56" text-anchor="middle">scoring · title → persona mapping</text>
+        <rect class="grp" x="740" y="244" width="240" height="46" rx="8"/><text class="t" x="756" y="264" style="font-size:12.5px">SQL database</text><text class="ts" x="756" y="281">baselines · changes · overrides</text>
+      </g>
+      <path class="edge" d="M380 150 H418" marker-end="url(#arr)"/>
+      <path class="edge" d="M540 150 H578" marker-end="url(#arr)"/>
+      <path class="edge" d="M700 150 H738" marker-end="url(#arr)"/>
+      <path class="edge dash" d="M715 66 V146"/>
+
+      <g class="lc-api"><rect class="grp" x="894" y="112" width="86" height="76" rx="8"/><text class="t" x="937" y="146" text-anchor="middle">API</text><text class="ts" x="937" y="164" text-anchor="middle">reads</text></g>
+      <path class="edge" d="M860 150 H892" marker-end="url(#arr)"/>
+      <path class="edge" d="M950 188 V242" marker-end="url(#arr)"/>
+      <text class="al" x="958" y="220">writes</text>
+      <path class="edge" d="M790 244 V190" marker-end="url(#arr)"/>
+      <text class="al" x="782" y="222" text-anchor="end">mirrors to OneLake</text>
+    </svg>
+    </div>
+    <figcaption>Dashed arrows are scheduled jobs; solid arrows run on demand.</figcaption>
+  </figure>
+
+  <h3>Sources</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Source</th><th>Data</th><th style="width:22%">Cadence</th></tr></thead>
+    <tbody>
+      <tr><td>Intune (Graph <code>managedDevices</code>, detected apps)</td><td>Hardware, OS build, patch state, installed apps</td><td>Every 4 hours</td></tr>
+      <tr><td>Endpoint Analytics / Nexthink / 1E</td><td>Boot time, crashes, battery health, free disk</td><td>Daily</td></tr>
+      <tr><td>ServiceNow (<code>incident</code>, <code>sc_req_item</code>, <code>sc_cat_item</code>)</td><td>Tickets, requests, exceptions</td><td>Hourly, incremental on <code>sys_updated_on</code></td></tr>
+      <tr><td>HR system (Workday / SAP) or Entra ID</td><td>Job title, department, manager</td><td>Daily</td></tr>
+      <tr><td>App catalogue (Intune assignments per persona group)</td><td>Apps per persona</td><td>Daily</td></tr>
+    </tbody></table></div>
+
+  <h3>Gold model</h3>
+  <ul>
+    <li><code>dim_persona</code>, <code>dim_app_catalog</code>, <code>dim_date</code></li>
+    <li><code>device_scored</code>: pillar scores, <code>fit_class</code>, <code>under_prov</code></li>
+    <li><code>fact_device_telemetry_daily</code>: drives the 12-week health trend</li>
+    <li><code>fact_ticket</code>: with <code>type</code>, <code>sla_breached</code>, <code>week</code></li>
+    <li><code>job_title_mapping</code>: <code>conf</code> and <code>why</code></li>
+    <li><code>fact_persona_migration</code>, <code>fact_app_exception</code></li>
+    <li>Views: <code>vw_persona_health</code>, <code>vw_fit_by_persona</code>, <code>vw_ticket_health</code></li>
+  </ul>
+
+  <h3>Notebooks</h3>
+  <ul>
+    <li><b>Scoring:</b> a Python port of the shared scoring logic, run against the published baseline, with a parity test against the TypeScript package using the same fixtures.</li>
+    <li><b>Title → persona mapping:</b> rules plus a classifier (scikit-learn, or Azure OpenAI embeddings with a similarity score). Outputs the confidence and the "why flagged" reason; review-queue decisions feed back as labels.</li>
+  </ul>
+
+  <h3>SQL database tables</h3>
+  <ul>
+    <li><code>baseline</code>: persona, version, Draft / Published, values, edited by, edited at</li>
+    <li><code>persona_change</code>: user, from, to, status, orchestration id, requested by</li>
+    <li><code>mapping_override</code>: title, department, persona, reviewer</li>
+    <li><code>app_exception</code> (local copy of RITM state) and <code>audit_log</code></li>
+  </ul>
+  <p><b>Scheduling:</b> one orchestrating pipeline runs ingest → silver → scoring → Warehouse refresh. Publishing a baseline triggers a re-score through the Fabric REST API.</p>
+</section>
+
+<!-- 06 -->
+<section id="security">
+  <h2><span class="n">06</span>Security and networking</h2>
+  <div class="tw"><table>
+    <thead><tr><th style="width:170px">Area</th><th>Controls</th></tr></thead>
+    <tbody>
+      <tr><td>Identity</td><td>Users sign in with Entra ID; roles are Entra app roles. The Functions managed identity gets Contributor on the Fabric workspace, or item-level Read / ReadData on the Warehouse and Write on the SQL database. A Fabric admin enables <i>Service principals can use Fabric APIs</i>, scoped to a security group.</td></tr>
+      <tr><td>Least privilege</td><td>Separate read and write identities if required. Graph <code>GroupMember.ReadWrite.All</code> limited to persona groups through a custom role or administrative unit. ServiceNow integration user holds scoped Table API roles only.</td></tr>
+      <tr><td>Network</td><td>Optional Static Web App private endpoint. Functions VNet integration with private endpoints for Key Vault, Redis and Service Bus. Fabric workspace-level Private Link where policy requires it.</td></tr>
+      <tr><td>Data protection</td><td>Names and emails stay in gold under Warehouse column-level security. The API masks email for Viewer-only roles.</td></tr>
+      <tr><td>Application</td><td>CSP, Zod validation on every input, parameterised SQL only.</td></tr>
+    </tbody></table></div>
+</section>
+
+<!-- 07 -->
+<section id="devops">
+  <h2><span class="n">07</span>DevOps and environments</h2>
+  <div class="tw"><table>
+    <thead><tr><th style="width:170px">Item</th><th>Approach</th></tr></thead>
+    <tbody>
+      <tr><td>Repository</td><td>pnpm monorepo: <code>apps/web</code>, <code>apps/api</code>, <code>packages/scoring</code>, <code>packages/contracts</code>, <code>infra/</code> (Bicep), <code>fabric/</code> (Git-synced items)</td></tr>
+      <tr><td>CI</td><td>GitHub Actions: lint, typecheck, unit tests, scoring parity tests, Playwright against MSW</td></tr>
+      <tr><td>Front end</td><td><code>Azure/static-web-apps-deploy</code>, with a preview environment per pull request</td></tr>
+      <tr><td>API</td><td><code>Azure/functions-action</code> to the linked Function App, one per environment</td></tr>
+      <tr><td>Infrastructure</td><td>Bicep through <code>azd</code>: Static Web App, Function App, Key Vault, Redis, Service Bus, App Insights, VNet</td></tr>
+      <tr><td>Fabric</td><td>Workspace Git integration in Dev; deployment pipelines Dev → Test → Prod with connection rules</td></tr>
+      <tr><td>Monitoring</td><td>End-to-end tracing SPA → Functions → SQL; alerts on failed orchestrations, pipeline failures and capacity usage</td></tr>
+    </tbody></table></div>
+
+  <h3>Starting sizes</h3>
+  <ul>
+    <li>Fabric <b>F8–F16</b> for Dev / Test, <b>F32</b> for Prod; confirm with the Capacity Metrics app.</li>
+    <li>Static Web Apps Standard, about $9 per app per month.</li>
+    <li>Functions Flex Consumption with one always-ready instance.</li>
+    <li>Redis smallest tier; Service Bus Standard.</li>
+  </ul>
+</section>
+
+<!-- 08 -->
+<section id="phases">
+  <h2><span class="n">08</span>Delivery phases</h2>
+  <ol class="phases">
+    <li><div><b>Foundation</b><span>Landing zone, Fabric workspaces, Intune and ServiceNow ingestion to silver, React shell with routing, themes and MSW demo data.</span></div><em>2–3 weeks</em></li>
+    <li><div><b>Read path</b><span>Gold model and scoring notebook, read API with Redis, Personas, Persona, Device and Tickets screens.</span></div><em>3–4 weeks</em></li>
+    <li><div><b>Baselines</b><span>Shared scoring package, what-if sliders, draft / publish writes, re-score trigger.</span></div><em>2 weeks</em></li>
+    <li><div><b>Mapping</b><span>HR feed, classifier notebook, review queue with override writeback.</span></div><em>2–3 weeks</em></li>
+    <li><div><b>Change and Switch</b><span>Migration and exception views, persona-switch orchestration, status polling.</span></div><em>3 weeks</em></li>
+    <li><div><b>Hardening</b><span>Private networking, load testing, accessibility, guided tour, production cutover.</span></div><em>to plan</em></li>
+  </ol>
+</section>
+
+<!-- 09 -->
+<section id="decisions">
+  <h2><span class="n">09</span>Open decisions</h2>
+  <p class="sub">These shape the design and are worth settling before phase 1 ends.</p>
+  <div class="decisions">
+    <div><b>Telemetry source</b><span>Endpoint Analytics or a third-party tool for boot time, crashes and battery. Decides the ingestion design.</span></div>
+    <div><b>Where persona membership lives</b><span>Entra groups (recommended, so Intune follows) or a field in the HR system.</span></div>
+    <div><b>Row-level visibility</b><span>If managers only see their own org: filter in the API (recommended) or use delegated access to Fabric, which needs MSAL in the SPA.</span></div>
+    <div><b>Other API consumers</b><span>If anything besides this front end will call the API, add API Management from day one.</span></div>
+  </div>
+</section>
+
+<footer>Persona Fleet Command · architecture proposal · draft 17 Sep 2026</footer>
+</main>
+</div>
+</body>
+</html>

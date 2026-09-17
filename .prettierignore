@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+package-lock.json
+*.docx
+Persona-Fleet-Command-Architecture.html
+personalfleet.html
+apps/web/public/mockServiceWorker.js

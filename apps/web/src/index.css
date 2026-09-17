@@ -1,0 +1,39 @@
+/* Temporary scaffold styles. The wireframe's full theme system replaces this in step 4. */
+:root {
+  color-scheme: dark;
+  --bg: #0b0f1c;
+  --text: #e9ecf6;
+  --dim: #8b94b2;
+  --accent: #7c8cff;
+  --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+}
+.scaffold {
+  max-width: 640px;
+  margin: 15vh auto;
+  padding: 0 24px;
+}
+.scaffold h1 {
+  font-size: 32px;
+  margin: 8px 0 12px;
+}
+.scaffold p {
+  color: var(--dim);
+}
+.scaffold .eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+code {
+  font-family: var(--mono);
+  color: var(--text);
+}
