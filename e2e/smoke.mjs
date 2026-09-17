@@ -150,7 +150,26 @@ async function run() {
     await page.goBack();
   });
   await step("nav Change", click("link", "Change"), "Change");
+  await step("open a persona from the Change table", async () => {
+    await page.getByRole("table", { name: "Change by persona" }).getByText("Data Science").click();
+    await page.getByRole("table", { name: "Devices" }).waitFor();
+    await page.goBack();
+  });
   await step("nav Switch", click("link", "Switch"), "Persona change");
+  await step("switch: pick user and persona", async () => {
+    await page.locator("#swuser").selectOption({ index: 1 });
+    await page.locator("#swto").selectOption({ index: 1 });
+    await page.getByRole("table", { name: "Impact of the persona change" }).waitFor();
+  });
+  await step("switch: apply", async () => {
+    await page.getByRole("button", { name: "Apply persona change" }).click();
+    await page.getByRole("status").filter({ hasText: "Persona changed" }).waitFor();
+    await page.getByRole("table", { name: "Persona change log" }).waitFor();
+  });
+  await step("switch: see it on the Change page", async () => {
+    await page.getByRole("link", { name: "Change page" }).first().click();
+    await page.getByRole("heading", { name: "Change" }).waitFor();
+  });
   await step(
     "chart library",
     () => page.goto(`${base}/dev/charts`, { waitUntil: "networkidle" }),

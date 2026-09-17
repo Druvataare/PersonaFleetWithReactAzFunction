@@ -33,6 +33,10 @@ export interface UiState {
   ticketPersona: PersonaId | "all";
   ticketCatFilter: string | null;
 
+  /* Switch page wizard */
+  switchUser: string;
+  switchTo: PersonaId | "";
+
   /** Draft baselines per persona; a persona without an entry uses the API default. */
   draftBaselines: Record<PersonaId, Baseline>;
 
@@ -56,6 +60,8 @@ const FILTER_DEFAULTS = {
   ticketKind: "inc",
   ticketPersona: "all",
   ticketCatFilter: null,
+  switchUser: "",
+  switchTo: "",
 } satisfies Partial<UiState>;
 
 export const useUi = create<UiState>()(

@@ -24,8 +24,8 @@ Building the React front end from the `personalfleet.html` wireframe, using the 
 | 6   | Personas page              | Done        | 17 Sep 2026   |
 | 7   | Persona page + Device page | Done        | 17 Sep 2026   |
 | 8   | Baselines page             | Done        | 17 Sep 2026   |
-| 9   | Tickets page               | Testing     |               |
-| 10  | Change page + Switch page  | Not started |               |
+| 9   | Tickets page               | Done        | 17 Sep 2026   |
+| 10  | Change page + Switch page  | Testing     |               |
 | 11  | Guided tour                | Not started |               |
 | 12  | Quality pass + deploy      | Not started |               |
 
@@ -756,3 +756,36 @@ Baseline-dependent numbers (health, fit, ticket status) are not computed by the 
 | Typecheck, lint, format, build | Pass                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 **Reference numbers (incidents):** Field Engineer +0.26 and Contact Centre +0.16 over baseline; Creative Studio +0.03 and Knowledge Worker +0.02 near; Data Science, Engineering, Executive within.
+
+### Step 10 — Change page + Switch page (17 Sep 2026)
+
+**Built** (under `apps/web/src`)
+
+| Path                      | Contents                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pages/ChangePage.tsx`    | 4 KPIs (persona changes, people reassigned, app exceptions, exceptions pending); migration flow; top 8 apps requested outside a persona; by-persona table (moved in, moved out, net, exceptions, pending) sorted by movement, rows open the persona                                                                                                                                                                          |
+| `pages/SwitchPage.tsx`    | Step 1 user picker grouped by persona · Step 2 current persona and device · Step 3 new persona · Step 4 impact: 4 KPIs (productivity, tasks automated, security risk, user experience) and a 13-row before/after table with better/worse colouring · Apply persona change (`POST /api/persona-changes`) and Start again · success toast or error · persona change log with links to the new persona page and the Change page |
+| `components/ui.tsx`       | `TextKpi` for text headline values ("High → Low")                                                                                                                                                                                                                                                                                                                                                                            |
+| `store/ui.ts`             | `switchUser`, `switchTo`: the wizard keeps its selection when you follow a link and come back                                                                                                                                                                                                                                                                                                                                |
+| `mocks/data/wireframe.ts` | Test helper now also loads the wireframe's persona-switch section (`swMetrics`, `TASKS_AUTO`, `ONBOARD_DAYS`)                                                                                                                                                                                                                                                                                                                |
+
+**How a switch works:** Apply calls the API, which moves the user's device to the new persona, adjusts both headcounts, adds to (or creates) the migration route and logs the change. The mutation then refreshes personas, devices, migrations and the change log, so the Switch page (user now under the new persona), Personas grid, persona pages, Baselines fit and Change page all show the move. Like the wireframe, changes last until the page is reloaded (mock database).
+
+**Changes from the wireframe**
+
+- The Excel save is replaced by the API call; the success message drops "saved to persona-fleet-data.xlsx / not saved". A failure shows "Could not apply the change … Nothing was changed."
+- The Apply button shows "Applying…" and is disabled while the request runs.
+- Change-table rows are keyboard reachable; the pickers have labels.
+
+**Test results**
+
+| Check                          | Result                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Switch metrics parity          | `@pfc/scoring` `switchMetrics` **identical to the wireframe's `swMetrics` for all 1,092 combinations** (182 sample devices × 6 other personas)                                                                                                                                                                                                                      |
+| Change page tests              | KPIs, top exception apps, migration flow totals (+244 Data Science, −251 Knowledge Worker), by-persona table order and every cell match the wireframe; row navigation                                                                                                                                                                                               |
+| Switch page tests              | User picker groups (7 personas, 182 users); current persona; impact heading, 4 KPIs and table rows match the wireframe's `swMetrics`; better/worse colours; **Apply shows the toast and log, the user moves to the new persona, the Change page shows 469 people, Data Science has 341 devices including the user, Knowledge Worker 6,119**; Start again; log links |
+| Visual comparison              | Wireframe vs React at 1440px: Change page (KPIs, flow, bars, table) and Switch impact for Divya Gill, Contact Centre → Knowledge Worker (69 → 96, −3 / wk, Low → Low, 87 → 95, all 13 rows) match                                                                                                                                                                   |
+| `npm test`                     | Pass: 24 test files, 496 tests, no React warnings                                                                                                                                                                                                                                                                                                                   |
+| `npm run test:coverage`        | 97.4% statements, 87.6% branches, 97.7% functions, 98.2% lines                                                                                                                                                                                                                                                                                                      |
+| Smoke test                     | Pass: 47 steps (adds Change-table navigation, picking user and persona, Apply, log link to Change page)                                                                                                                                                                                                                                                             |
+| Typecheck, lint, format, build | Pass                                                                                                                                                                                                                                                                                                                                                                |

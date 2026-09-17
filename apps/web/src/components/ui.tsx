@@ -44,6 +44,30 @@ export function Kpi({ value, label, tone, dec, pre, suf }: KpiProps) {
   );
 }
 
+/** A headline value that is text rather than a number (e.g. "High → Low"). */
+export function TextKpi({
+  value,
+  label,
+  tone,
+}: {
+  value: string;
+  label: string;
+  tone?: ToneOrAccent | null;
+}) {
+  return (
+    <div className="statbox" role="group" aria-label={label}>
+      <div>
+        <div className="stat-v" style={{ color: toneColor(tone) }}>
+          {value}
+        </div>
+        <div className="eyebrow" style={{ marginTop: 6 }}>
+          {label}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Sect({ children }: { children: ReactNode }) {
   return <div className="sect">{children}</div>;
 }
