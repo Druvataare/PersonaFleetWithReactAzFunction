@@ -14,20 +14,20 @@ Building the React front end from the `personalfleet.html` wireframe, using the 
 
 ## Progress
 
-| #   | Step                       | Status  | Date approved |
-| --- | -------------------------- | ------- | ------------- |
-| 1   | Project scaffold           | Done    | 17 Sep 2026   |
-| 2   | Scoring package            | Done    | 17 Sep 2026   |
-| 3   | Sample data + mock API     | Done    | 17 Sep 2026   |
-| 4   | App shell                  | Done    | 17 Sep 2026   |
-| 5   | Chart library              | Done    | 17 Sep 2026   |
-| 6   | Personas page              | Done    | 17 Sep 2026   |
-| 7   | Persona page + Device page | Done    | 17 Sep 2026   |
-| 8   | Baselines page             | Done    | 17 Sep 2026   |
-| 9   | Tickets page               | Done    | 17 Sep 2026   |
-| 10  | Change page + Switch page  | Done    | 17 Sep 2026   |
-| 11  | Guided tour                | Done    | 17 Sep 2026   |
-| 12  | Quality pass + deploy      | Testing |               |
+| #   | Step                       | Status | Date approved |
+| --- | -------------------------- | ------ | ------------- |
+| 1   | Project scaffold           | Done   | 17 Sep 2026   |
+| 2   | Scoring package            | Done   | 17 Sep 2026   |
+| 3   | Sample data + mock API     | Done   | 17 Sep 2026   |
+| 4   | App shell                  | Done   | 17 Sep 2026   |
+| 5   | Chart library              | Done   | 17 Sep 2026   |
+| 6   | Personas page              | Done   | 17 Sep 2026   |
+| 7   | Persona page + Device page | Done   | 17 Sep 2026   |
+| 8   | Baselines page             | Done   | 17 Sep 2026   |
+| 9   | Tickets page               | Done   | 17 Sep 2026   |
+| 10  | Change page + Switch page  | Done   | 17 Sep 2026   |
+| 11  | Guided tour                | Done   | 17 Sep 2026   |
+| 12  | Quality pass + deploy      | Done   | 17 Sep 2026   |
 
 Status values: `Not started` · `In progress` · `Testing` · `Done`
 
