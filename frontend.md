@@ -4,6 +4,8 @@ Building the React front end from the `personalfleet.html` wireframe, using the 
 
 **Target stack:** React 19 · TypeScript · Vite · React Router · TanStack Query · Zustand · D3 · MSW (mock API) · Vitest · Playwright · Azure Static Web Apps
 
+**Repository:** [Druvataare/PersonaFleetWithReactAzFunction](https://github.com/Druvataare/PersonaFleetWithReactAzFunction) (branch `main`, one commit per step)
+
 **Related documents:** [Persona-Fleet-Command-Architecture.html](Persona-Fleet-Command-Architecture.html) · [Persona-Fleet-Command-Architecture.docx](Persona-Fleet-Command-Architecture.docx)
 
 ---
@@ -346,7 +348,7 @@ Status values: `Not started` · `In progress` · `Testing` · `Done`
 - Root: npm workspaces, `tsconfig.base.json` (strict), `eslint.config.js` (flat config: TypeScript, React Hooks, React Refresh), Prettier, root `vitest.config.ts` running every workspace as a test project, `.editorconfig`, `.gitattributes`, `.gitignore`, `.nvmrc` (Node 22).
 - `packages/scoring`: `@pfc/scoring`, consumed as TypeScript source (no build step), placeholder export + test.
 - `apps/web`: `@pfc/web`, React 19 + Vite 8, jsdom + Testing Library test setup, placeholder page that imports `@pfc/scoring` to prove the workspace link, `public/staticwebapp.config.json`.
-- Git repository initialised (files staged, not yet committed).
+- Git repository initialised; pushed to GitHub as the first commit on `main`.
 
 **Versions:** React 19.3 · Vite 8.3 · TypeScript 6.0.3 · Vitest 5.0 · ESLint 10.10 · typescript-eslint 8.70 · Prettier 3.9
 
