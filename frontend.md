@@ -608,3 +608,9 @@ Baseline-dependent numbers (health, fit, ticket status) are not computed by the 
 | Guard 2      | `e2e/smoke.mjs` (`npm run smoke`): serves the **minified** build and clicks through 24 steps in real Chrome (themes, toggles, filters, persona → device → back, every nav item, chart library, deep link + reload, unknown URL), failing on any page or console error. Added to CI after Build, so a broken production build cannot deploy. |
 | Verification | Smoke test against the broken live build: **failed** with the exact error. Against the fixed build: **passed**, 24 steps, no browser errors.                                                                                                                                                                                                |
 | Also         | Added `favicon.svg` (the brand mark), removing a 404 on every page load.                                                                                                                                                                                                                                                                    |
+
+**Fix after review — page content touched the window edge (17 Sep 2026)**
+
+- Cause: inherited from the wireframe. `#app` has classes `wrap` (24px side padding) and `body`; `.body{padding:6px 0 60px}` comes later in the stylesheet and zeroes the side padding. Wider than ~1550px the centred 1500px column hid it; narrower, panels and tables sat at 0px.
+- Fix: `.wrap.body{padding:6px 24px 60px}` (16px below 560px wide), added after the verbatim wireframe CSS.
+- Guard: smoke test step "page content keeps a side margin" at 1280px. Verified it fails without the fix (`KPI tile starts 0px from the window edge`) and passes with it (25 steps).

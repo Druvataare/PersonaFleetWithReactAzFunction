@@ -76,6 +76,14 @@ async function run() {
   const click = (role, name) => () => page.getByRole(role, { name }).first().click();
 
   await step("open Personas", () => page.goto(`${base}/personas`, { waitUntil: "networkidle" }), "Personas");
+  await step("page content keeps a side margin", async () => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const left = await page
+      .locator("#app .statbox")
+      .first()
+      .evaluate((el) => el.getBoundingClientRect().left);
+    if (left < 16) throw new Error(`KPI tile starts ${left}px from the window edge`);
+  });
   for (const theme of ["daylight", "ember", "midnight"]) {
     await step(`theme ${theme}`, () => page.selectOption("#themesel", theme));
   }

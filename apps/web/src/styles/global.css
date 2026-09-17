@@ -155,3 +155,7 @@ input[type=range]{height:3px;background:var(--line-soft);border-radius:2px;outli
 .soon{border:1px dashed var(--line);border-radius:14px;padding:22px;color:var(--faint);font-size:12.5px;line-height:1.6}
 .soon b{color:var(--dim);font-weight:600}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+/* Wireframe bug: .body's padding shorthand removed .wrap's side padding, so page
+   content touched the window edge below ~1550px. Keep both. */
+.wrap.body{padding:6px 24px 60px}
+@media(max-width:560px){.wrap,.wrap.body{padding-left:16px;padding-right:16px}}
