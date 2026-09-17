@@ -327,18 +327,19 @@ Status values: `Not started` · `In progress` · `Testing` · `Done`
 
 ## Commands
 
-| Command                 | What it does                                           |
-| ----------------------- | ------------------------------------------------------ |
-| `npm install`           | Install all workspace dependencies                     |
-| `npm run dev`           | Start the web app at http://localhost:5173             |
-| `npm run build`         | Typecheck and build the web app into `apps/web/dist`   |
-| `npm run preview`       | Serve the production build locally                     |
-| `npm test`              | Run all Vitest tests (web + scoring)                   |
-| `npm run test:watch`    | Run tests in watch mode                                |
-| `npm run test:coverage` | Run tests with a coverage report (HTML in `coverage/`) |
-| `npm run typecheck`     | Typecheck every workspace                              |
-| `npm run lint`          | ESLint across the repository                           |
-| `npm run format`        | Format with Prettier (`format:check` to verify only)   |
+| Command                 | What it does                                                                                                    |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `npm install`           | Install all workspace dependencies                                                                              |
+| `npm run dev`           | Start the web app at http://localhost:5173                                                                      |
+| `npm run build`         | Typecheck and build the web app into `apps/web/dist`                                                            |
+| `npm run preview`       | Serve the production build locally                                                                              |
+| `npm test`              | Run all Vitest tests (web + scoring)                                                                            |
+| `npm run test:watch`    | Run tests in watch mode                                                                                         |
+| `npm run test:coverage` | Run tests with a coverage report (HTML in `coverage/`)                                                          |
+| `npm run typecheck`     | Typecheck every workspace                                                                                       |
+| `npm run lint`          | ESLint across the repository                                                                                    |
+| `npm run format`        | Format with Prettier (`format:check` to verify only)                                                            |
+| `npm run smoke`         | Click through the production build in Chrome (run `npm run build` first; `SMOKE_URL=…` to test a deployed site) |
 
 ---
 
