@@ -17,7 +17,7 @@ Building the React front end from the `personalfleet.html` wireframe, using the 
 | #   | Step                       | Status      | Date approved |
 | --- | -------------------------- | ----------- | ------------- |
 | 1   | Project scaffold           | Done        | 17 Sep 2026   |
-| 2   | Scoring package            | Not started |               |
+| 2   | Scoring package            | Testing     |               |
 | 3   | Sample data + mock API     | Not started |               |
 | 4   | App shell                  | Not started |               |
 | 5   | Chart library              | Not started |               |
@@ -327,17 +327,18 @@ Status values: `Not started` · `In progress` · `Testing` · `Done`
 
 ## Commands
 
-| Command              | What it does                                         |
-| -------------------- | ---------------------------------------------------- |
-| `npm install`        | Install all workspace dependencies                   |
-| `npm run dev`        | Start the web app at http://localhost:5173           |
-| `npm run build`      | Typecheck and build the web app into `apps/web/dist` |
-| `npm run preview`    | Serve the production build locally                   |
-| `npm test`           | Run all Vitest tests (web + scoring)                 |
-| `npm run test:watch` | Run tests in watch mode                              |
-| `npm run typecheck`  | Typecheck every workspace                            |
-| `npm run lint`       | ESLint across the repository                         |
-| `npm run format`     | Format with Prettier (`format:check` to verify only) |
+| Command                 | What it does                                           |
+| ----------------------- | ------------------------------------------------------ |
+| `npm install`           | Install all workspace dependencies                     |
+| `npm run dev`           | Start the web app at http://localhost:5173             |
+| `npm run build`         | Typecheck and build the web app into `apps/web/dist`   |
+| `npm run preview`       | Serve the production build locally                     |
+| `npm test`              | Run all Vitest tests (web + scoring)                   |
+| `npm run test:watch`    | Run tests in watch mode                                |
+| `npm run test:coverage` | Run tests with a coverage report (HTML in `coverage/`) |
+| `npm run typecheck`     | Typecheck every workspace                              |
+| `npm run lint`          | ESLint across the repository                           |
+| `npm run format`        | Format with Prettier (`format:check` to verify only)   |
 
 ---
 
@@ -391,3 +392,40 @@ Status values: `Not started` · `In progress` · `Testing` · `Done`
 - First create attempt failed: _Enterprise-grade edge_ is not allowed on the Free plan. Leave it unchecked.
 - Upgrade to **Standard** (Settings → Hosting plan) before the backend phase, for the linked Azure Functions backend and custom Entra sign-in.
 - The warning `Unexpected input(s) 'github_id_token'` also appears with Azure's generated workflow and does not affect deployment.
+
+### Step 2 — Scoring package (17 Sep 2026)
+
+**Built** — `packages/scoring/src`, pure TypeScript with no runtime dependencies (`d3.mean`/`d3.sum` replaced by local helpers that return 0 instead of `undefined` for empty lists).
+
+| File         | Contents (wireframe source)                                                                                                                   |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`   | `PersonaDef`, `Baseline`, `Weights`, `Device`, `DeviceTicket`, `Migration`, `AppException`, `ScoredDevice`, `Pillars`, `PersonaModel`, `Tone` |
+| `math.ts`    | `clamp`, `sum`, `mean`                                                                                                                        |
+| `bands.ts`   | `healthTone` / `healthLabel` (`band`, `bandLabel`), `confBand`, `cpuTier`, `complianceTone` (site patch colours)                              |
+| `device.ts`  | `scoreDevice` (provisioning, performance, compliance, experience pillars + `underProv`), `deviceScore` (35/30/20/15 composite)                |
+| `persona.ts` | `buildPersonaModel` / `buildModel` (`buildModel`), `supportScore`, `personaHealth`                                                            |
+| `fit.ts`     | `fitClass`, `fitByPersona`, `FIT_KINDS`                                                                                                       |
+| `tickets.ts` | `ticketBaselinePerUser`, `ticketStatus`, `gradeTicketLoad` (per-user load, ceiling, variance, status for the Tickets page)                    |
+| `switch.ts`  | `switchMetrics` (`swMetrics`), `securityRisk`, `RISK_RANK`                                                                                    |
+
+**Design choices**
+
+- Rules return a semantic `Tone` (`good` / `warn` / `bad`) instead of colours; the web app maps tones to the active theme.
+- Headcount (`count`) and sample rows (`devices`) stay separate, as the wireframe's naming note requires.
+- Empty personas (possible after persona switches) produce zeros, never `NaN`.
+- Wireframe demo data (`personaTrend`, persona definitions, default baselines, weights) is not part of this package; it moves to the sample-data generator in step 3.
+
+**Test results**
+
+| Check                   | Result                                                                      |
+| ----------------------- | --------------------------------------------------------------------------- |
+| `npm run typecheck`     | Pass                                                                        |
+| `npm run lint`          | Pass, no warnings                                                           |
+| `npm run format:check`  | Pass                                                                        |
+| `npm test`              | Pass: 9 test files, 94 tests                                                |
+| `npm run test:coverage` | 100% statements (96/96), branches (88/88), functions (50/50), lines (84/84) |
+| `npm run build`         | Pass                                                                        |
+
+**Covered cases:** exactly on / above / below baseline; below on one, two and three parts; above on one part while below on another; clamping at 0 and 100; every band boundary; Windows 10 vs 11 and patched vs unpatched; ticket ceiling within / near / over; zero users; persona with no devices; baseline change re-grades health; switch to lighter and heavier personas; missing app catalogue. Expected values are calculated by hand from the wireframe formulas and noted in the tests.
+
+**Parity note:** the step 3 generator will reproduce the wireframe's exact sample data; a test there will compare this package's output with the wireframe's own numbers.
