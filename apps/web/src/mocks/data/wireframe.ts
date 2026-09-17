@@ -1,12 +1,23 @@
 /* Test helper: runs the wireframe's own data and scoring code from
    reference/personalfleet.html, so tests can compare against the original. */
 import * as d3 from "d3";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
-export const WIREFRAME_PATH = fileURLToPath(
-  new URL("../../../../../reference/personalfleet.html", import.meta.url),
-);
+/** Walks up from the working directory to the repo's reference/personalfleet.html
+    (import.meta.url is not a file URL in jsdom test environments). */
+function findWireframe(): string {
+  let dir = process.cwd();
+  for (;;) {
+    const candidate = join(dir, "reference", "personalfleet.html");
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(dir);
+    if (parent === dir) throw new Error("reference/personalfleet.html not found");
+    dir = parent;
+  }
+}
+
+export const WIREFRAME_PATH = findWireframe();
 
 function section(html: string, start: string, end: string): string {
   const from = html.indexOf(start);
@@ -29,12 +40,35 @@ export interface Wireframe {
   REQUESTS: any[];
   buildModel: (baselines: Record<string, any>) => any[];
   fitByPersona: (model: any[]) => any[];
+  /** The wireframe's chart functions; each returns an HTML/SVG string (Midnight theme). */
+  charts: Record<string, (...args: any[]) => string> & { setTicketCategory: (cat: string | null) => void };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 let cached: Wireframe | null = null;
 
-/** Loads data, scoring (THEMES…ICONS) and fit analysis sections of the wireframe script. */
+const CHART_FNS = [
+  "avatar",
+  "personaRing",
+  "pillarGauge",
+  "baselineHistogram",
+  "binHistogram",
+  "scatter",
+  "stackedAge",
+  "complianceBySite",
+  "ticketDonut",
+  "ticketDonutT",
+  "weekBars",
+  "personaDonut",
+  "trendArea",
+  "bullet",
+  "barList",
+  "migrationFlow",
+  "fitDonut",
+  "fitStack",
+];
+
+/** Loads data, scoring (THEMES…ICONS), icons and charts, and the fit analysis sections of the wireframe script. */
 export function loadWireframe(): Wireframe {
   if (cached) return cached;
   const html = readFileSync(WIREFRAME_PATH, "utf8");
@@ -43,11 +77,18 @@ export function loadWireframe(): Wireframe {
     "/* ---------------------------- THEMES",
     "/* ----------------------------- ICONS",
   );
-  const fit = section(html, "/* ---------------- DEVICE FIT ANALYSIS", "function fitDonut");
+  const charts = section(
+    html,
+    "/* ----------------------------- ICONS",
+    "/* ------------------------- SMALL BUILDERS",
+  );
+  const fit = section(html, "/* ---------------- DEVICE FIT ANALYSIS", "function fitBlock");
   const factory = new Function(
     "d3",
-    `${core}\nlet model;\n${fit}\nreturn { PERSONA_DEFS, APPS, DEFAULT_BASELINE, WEIGHTS, RAW, MIGRATIONS, EXCEPTIONS,
-      TITLE_ROWS, INCIDENTS, REQUESTS, buildModel, fitByPersona: (m) => { model = m; return fitByPersona(); } };`,
+    `const MONO = 'ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace';\n${core}\n${charts}\nlet model;\nconst state = { tcat: null };\n${fit}
+    return { PERSONA_DEFS, APPS, DEFAULT_BASELINE, WEIGHTS, RAW, MIGRATIONS, EXCEPTIONS,
+      TITLE_ROWS, INCIDENTS, REQUESTS, buildModel, fitByPersona: (m) => { model = m; return fitByPersona(); },
+      charts: { ${CHART_FNS.join(", ")}, setTicketCategory: (c) => { state.tcat = c; } } };`,
   ) as (lib: typeof d3) => Wireframe;
   cached = factory(d3);
   return cached;

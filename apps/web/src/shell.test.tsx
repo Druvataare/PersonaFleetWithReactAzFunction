@@ -208,3 +208,33 @@ async function kpiAsync(label: string, value: string) {
   const group = await screen.findByRole("group", { name: label });
   return within(group).findByText(value);
 }
+
+describe("chart library page", () => {
+  it("renders every chart on live mock data and switches persona", async () => {
+    const { user } = renderApp("/dev/charts");
+    expect(await screen.findByRole("img", { name: "Contact Centre health" })).toBeInTheDocument();
+    for (const name of [
+      "Health pillars",
+      "Health trend, 12 weeks",
+      "DEVICE HEALTH SCORE",
+      "RAM (GB)",
+      "DISK (GB)",
+      "CPU BENCHMARK INDEX",
+      "Boot time against free disk",
+      "Patch compliance by location",
+      "Tickets by age and priority",
+      "Volume by week",
+      "Where people moved",
+      "Fit distribution by persona",
+      "devices",
+      "titles",
+    ]) {
+      expect(screen.getAllByRole("img", { name }).length, name).toBeGreaterThan(0);
+    }
+    expect(screen.getAllByRole("img", { name: "tickets" })).toHaveLength(2);
+    await user.click(screen.getByRole("button", { name: "DS" }));
+    expect(screen.getByText("Five pillars · Data Science")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Connectivity: 374" }));
+    expect(screen.getByRole("button", { name: "Connectivity: 374" })).toHaveAttribute("aria-pressed", "true");
+  });
+});

@@ -1,6 +1,9 @@
 /* Static reference data from the wireframe. Object key order matters:
    the generator iterates APPS and weight maps in declaration order. */
 import type { Baseline, Migration, PersonaId, Weights } from "@pfc/scoring";
+import { CATALOG, TICKET_CATS } from "../../lib/categories.ts";
+
+export { CATALOG, TICKET_CATS };
 
 export const SEED = 20260815;
 
@@ -181,14 +184,6 @@ export const LAST = [
 ];
 export const SITES = ["Pune HQ", "Bengaluru", "Hyderabad", "London", "Austin", "Krakow", "Remote"];
 
-export const TICKET_CATS = [
-  "Performance",
-  "Hardware",
-  "Application",
-  "Access",
-  "Connectivity",
-  "Provisioning",
-];
 export const TICKET_TITLES: Record<string, string[]> = {
   Performance: [
     "Laptop extremely slow after patch",
@@ -405,16 +400,6 @@ export const MISMAP: Record<PersonaId, number> = {
   CRE: 0.01,
 };
 
-export const CATALOG = [
-  "Laptop Request",
-  "Software Install",
-  "VPN Access",
-  "Email Access",
-  "Access Request",
-  "Peripheral Request",
-  "Storage Upgrade",
-  "Memory Upgrade",
-];
 export const REQ_TITLES: Record<string, string[]> = {
   "Laptop Request": ["New starter laptop", "Replacement for damaged unit", "Loan device for travel"],
   "Software Install": ["Install licensed design suite", "Add analytics package", "Reinstall build tooling"],
