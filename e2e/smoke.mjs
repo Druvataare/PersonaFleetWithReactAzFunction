@@ -134,7 +134,21 @@ async function run() {
     page.getByRole("table", { name: "Component match" }).getByText("Contact Centre").click(),
   );
   await step("nav Tickets", click("link", "Tickets"), "Tickets");
+  await step("tickets persona filter", () => page.selectOption("#tpsel", "CC"));
+  await step("tickets category filter", () =>
+    page.getByRole("group", { name: "Ticket distribution legend" }).getByRole("button").first().click(),
+  );
+  await step("clear tickets category", () => page.getByRole("button", { name: /✕$/ }).click());
+  await step("tickets persona all", () => page.selectOption("#tpsel", "all"));
   await step("service requests", click("button", "Service requests"));
+  await step("investigate a persona", async () => {
+    await page
+      .getByRole("link", { name: /Investigate/ })
+      .first()
+      .click();
+    await page.getByRole("table", { name: "Devices" }).waitFor();
+    await page.goBack();
+  });
   await step("nav Change", click("link", "Change"), "Change");
   await step("nav Switch", click("link", "Switch"), "Persona change");
   await step(
