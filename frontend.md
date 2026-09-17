@@ -19,7 +19,7 @@ Building the React front end from the `personalfleet.html` wireframe, using the 
 | 1   | Project scaffold           | Done        | 17 Sep 2026   |
 | 2   | Scoring package            | Done        | 17 Sep 2026   |
 | 3   | Sample data + mock API     | Done        | 17 Sep 2026   |
-| 4   | App shell                  | Not started |               |
+| 4   | App shell                  | Testing     |               |
 | 5   | Chart library              | Not started |               |
 | 6   | Personas page              | Not started |               |
 | 7   | Persona page + Device page | Not started |               |
@@ -499,3 +499,59 @@ Baseline-dependent numbers (health, fit, ticket status) are not computed by the 
 - `personaTrend` (the 12-week health line) is derived from live health in the browser, so it is built with the Persona page in step 7.
 - The mock database resets on page reload, like the wireframe without the Excel link.
 - **Verified in the browser on the live site (17 Sep 2026):** all 11 read endpoints return OK through the service worker, with the reference numbers above.
+
+### Step 4 — App shell (17 Sep 2026)
+
+**Built** (under `apps/web/src`)
+
+| Path                     | Contents                                                                                                                                              |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `styles/global.css`      | The wireframe stylesheet ported verbatim (excluded from Prettier so it stays diffable against the wireframe), plus router link styles                 |
+| `theme/themes.ts`        | 7 themes, `applyTheme` (CSS variables + `color-scheme`), `isThemeKey`                                                                                 |
+| `store/ui.ts`            | Zustand store: theme, motion, chart names (persisted to `localStorage`); page filters and draft baselines (reset on reload)                           |
+| `api/queries.ts`         | TanStack Query hooks for every endpoint; persona-change mutation invalidates personas, devices, migrations, change log                                |
+| `model/useFleetModel.ts` | Combines API data with draft baselines and grades the fleet with `@pfc/scoring` in the browser                                                        |
+| `routes.tsx`, `App.tsx`  | Route table (React Router 8) and providers                                                                                                            |
+| `layout/`                | `AppLayout` (theme + body classes, scroll to top), `Topbar`, `Crumbs`                                                                                 |
+| `components/`            | `Icon` (19 icons), `Avatar` (7 personas), `AnimNum`, `Panel`, `Kpi`, `Sect`, `ChartType`, `Chip`, `PageHead`, `Loading`, `ErrorMessage`, `ComingSoon` |
+| `lib/`                   | `gb`, `formatNum`, `toneColor`, `createQueryClient`                                                                                                   |
+| `pages/`                 | Placeholder pages with live headline numbers; `NotFoundPage`, `RouteError`                                                                            |
+| `test/renderApp.tsx`     | Renders the whole app at a URL with the mock API, for integration tests                                                                               |
+
+**Routes**
+
+| Path                          | Page                    | Shows now (placeholder)                                                   |
+| ----------------------------- | ----------------------- | ------------------------------------------------------------------------- |
+| `/`                           | Redirect to `/personas` |                                                                           |
+| `/personas`                   | Personas                | 4 KPIs, persona cards with health, All / Needs attention filter           |
+| `/personas/:pid`              | Persona                 | Identity band with health, 8 KPIs, 5 worst devices (links to device page) |
+| `/personas/:pid/devices/:did` | Device                  | Device header with health                                                 |
+| `/baselines/:pid?`            | Baselines & device fit  | Persona strip, baseline contract summary                                  |
+| `/tickets`                    | Tickets                 | Incidents / requests switch, 4 KPIs                                       |
+| `/change`                     | Change                  | 4 KPIs                                                                    |
+| `/switch`                     | Persona change          | Heading                                                                   |
+| anything else                 | Not found               | Link back to Personas                                                     |
+
+**Behaviour carried over from the wireframe:** nav highlighting (Personas stays active on persona and device pages), breadcrumbs (section label; persona name and device host on drill-down pages; not on Baselines), back button (device → persona → Personas), theme picker, MOTION and CHART NAMES toggles as body classes, scroll to top on navigation, count-up numbers when MOTION is on.
+
+**Changes from the wireframe**
+
+- The TOUR button is visible but disabled until step 11; a **DEMO DATA** mark shows while the mock API is on. The CONNECT DATAVERSE button is gone.
+- Theme, motion and chart-name choices persist across reloads.
+- "Net people moved" no longer shows `+-149` when more people left than joined (wireframe bug).
+- Unknown personas, devices and URLs show a not-found page instead of a blank screen.
+
+**Test results**
+
+| Check                   | Result                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm test`              | Pass: 16 test files, 203 tests, no React warnings                                                                                                                                                                                                                                                                                                                                 |
+| Integration tests       | Redirect; every route by deep link; not-found cases; every nav item and active state; all 7 themes write CSS variables; MOTION / CHART NAMES body classes; breadcrumbs and links; back button chain; Needs attention filter; persona → device navigation; incidents / requests switch; live KPI numbers (12,095 devices, 2,063 incidents, 1,438 requests, 468 people, 15 pending) |
+| Unit tests              | Store (drafts, reset, persistence, invalid stored theme), themes, avatars, icons, `AnimNum`, `Kpi`                                                                                                                                                                                                                                                                                |
+| `npm run test:coverage` | 94.6% statements, 94.1% branches, 91.4% functions, 95.1% lines                                                                                                                                                                                                                                                                                                                    |
+| Typecheck, lint, format | Pass, no warnings                                                                                                                                                                                                                                                                                                                                                                 |
+| `npm run build`         | Pass: app 132.0 kB gzipped; mock API chunk 164.7 kB gzipped (loaded only with mocks on)                                                                                                                                                                                                                                                                                           |
+
+**Notes**
+
+- Bundle size (React, React Router, TanStack Query, D3) is reviewed in step 12.

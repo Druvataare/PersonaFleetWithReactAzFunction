@@ -6,3 +6,4 @@ package-lock.json
 Persona-Fleet-Command-Architecture.html
 reference/
 apps/web/public/mockServiceWorker.js
+apps/web/src/styles/global.css
