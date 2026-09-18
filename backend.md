@@ -70,7 +70,7 @@ Data Science (`DS`) and Creative Studio (`CRE`) do not exist in this estate. Ten
 
 1. **We build the gold layer ourselves.** Both fact tables are empty, so there is no pre-computed device score to read. Every measure — boot time, crashes, free space, battery, patch state — is aggregated from bronze telemetry by a job we write (step 2). This is the largest addition to the original plan.
 2. **The Tickets page has a real source after all.** 3,508 escalations across 1,088 devices, plus 7,991 failures, is a genuine support-load signal with a category (`escalationReason`), a requester and a timeline.
-3. **Mapping confidence needs a different basis.** All 21 titles map to exactly one persona, so consistency-based confidence would return 100% for everything. Replaced with an app-fit measure (AD-16).
+3. **Mapping confidence needs a different basis.** All 21 titles map to exactly one persona, so consistency-based confidence would return 100% for everything. Replaced with agreement between the HR persona and the Entra persona group (AD-16).
 4. **The guided tour needs one edit.** [steps.ts:85](apps/web/src/tour/steps.ts#L85) drives step 8 with `pid: "DS"`, a persona this estate does not have. It becomes `DEV` or `RETAIL` at cutover. This is the only hardcoded persona id outside the mock data.
 
 ### Second lakehouse compared — `EPInsight_Lakehouse_Dev`
@@ -107,7 +107,7 @@ Each decision records what we chose, why, and what it costs us. Numbered so late
 
 ### AD-3 · Gold views are the contract boundary
 
-**Decision.** The BFF reads only `vw_api_v1_*` views. It never names a base table.
+**Decision.** The BFF reads only `persona_vw_api_v1_*` views. It never names a base table.
 
 **Why.** Upstream tables will be renamed, re-partitioned and re-modelled. When that happens we fix a view and the API, its tests and the front end never notice. The views are also the security boundary: the managed identity is granted the views, not the tables. Versioning the name means a breaking change ships as `v2` alongside `v1` rather than as a coordinated release.
 
@@ -117,7 +117,7 @@ Each decision records what we chose, why, and what it costs us. Numbered so late
 
 **Decision.** Measurements and **reference data** — persona identity and display, the per-persona app contract, tasks automated, onboarding days, CPU scores, ticket categories, SLA targets — live in the lakehouse beside the gold tables that join to them. **Business policy** — baselines and pillar weights — and everything the portal writes live in a **SQL database in Fabric**.
 
-**Why.** Reference data is needed by the step 2 gold build (app fit needs the app contract; tickets need the categories), so it must sit where that build can read it, and it changes rarely. Baselines and weights are different: they are policy people argue over and will edit, and the Baselines page is built around changing them. Putting those in the lakehouse would mean a pipeline run to change a number. A SQL database in Fabric is transactional, editable, and mirrors into OneLake so the medallion layer can still join to it.
+**Why.** Reference data is needed by the step 2 gold build (the device build needs the app contract; tickets need the categories), so it must sit where that build can read it, and it changes rarely. Baselines and weights are different: they are policy people argue over and will edit, and the Baselines page is built around changing them. Putting those in the lakehouse would mean a pipeline run to change a number. A SQL database in Fabric is transactional, editable, and mirrors into OneLake so the medallion layer can still join to it.
 
 **Consequence.** Two stores with a clear rule: _does the portal or a policy owner change it?_ SQL database. _Otherwise?_ Lakehouse. It also gives writeback (AD-5) a home it would have needed anyway. The full table list is in the front-end to lakehouse map.
 
@@ -147,7 +147,7 @@ Each decision records what we chose, why, and what it costs us. Numbered so late
 
 ### AD-8 · Pre-aggregate in gold; cache what is still expensive
 
-**Decision.** Aggregates are computed by the gold job into tables, so `vw_api_v1_*` is close to `SELECT *`. The BFF caches reference data hard and aggregates for minutes, with a per-endpoint latency budget that is logged.
+**Decision.** Aggregates are computed by the gold job into tables, so `persona_vw_api_v1_*` is close to `SELECT *`. The BFF caches reference data hard and aggregates for minutes, with a per-endpoint latency budget that is logged.
 
 **Why.** 881,570 boot events and 7.8 million software rows are not something to touch on a page load. Cold queries and concurrency spikes on the SQL endpoint are real.
 
@@ -169,11 +169,13 @@ Each decision records what we chose, why, and what it costs us. Numbered so late
 
 **Field mapping.** `id` ← `jobId` · `uid` / `dept` / `pid` ← device's primary user via the spine · `cat` ← `escalationReason` · `short` ← `detail` · `state` / `open` ← latest `eventType` per `jobId` · `ageDays` / `week` ← `timestampUtc` (stored as `varchar`, cast in gold) · `group` ← `agentName`.
 
-**Still missing.** `priority` and `sla` have no source. Priority is derived from outcome — escalated is P2, failed is P3, everything else P4 — and recorded here as a derivation, not a measurement. SLA breach is derived the way an ITSM tool computes it — ticket age against a resolution target for its priority — using stated targets in `dimslatarget`, since the contract's `sla` field is a boolean and cannot say "unknown".
+**Still missing.** `priority` and `sla` have no source. Priority is derived from outcome — escalated is P2, failed is P3, everything else P4 — and recorded here as a derivation, not a measurement. SLA breach is derived the way an ITSM tool computes it — ticket age against a resolution target for its priority — using stated targets in `persona_dimslatarget`, since the contract's `sla` field is a boolean and cannot say "unknown".
 
 **Requests tab.** `kind=req` maps to `tbl_brz_intune_app_deployment` (assignment intent and install state) — application requests, the nearest equivalent to the wireframe's service requests. Confirmed in step 8.
 
 **Consequence.** The Tickets page measures automated-remediation load, not service-desk load. The page says so. If an ITSM source is ingested later, only the gold view changes.
+
+**Settled by discovery (18 Sep 2026).** Incidents are the 11,499 jobs ending ESCALATED (P2, 3,508) or FAILED (P3, 7,991). `escalationReason` has a single value, so the category comes from `ruleId` through `persona_dimticketcategory` — six rules: OneDrive sync 5,560 incidents, Browser 2,342, Network 1,958, Printing 567, Disk space 552, Windows Update 520. There are no resolution events, so a ticket closes when the same rule next succeeds on the same device and is open until then. These categories replace the wireframe's six, so the two places the front end hardcodes the wireframe names are made to read `ticketCategories` and `catalogItems` from `/api/catalog`, which the contract already provides (step 8).
 
 ### AD-11 · The API contract is frozen
 
@@ -185,7 +187,7 @@ Each decision records what we chose, why, and what it costs us. Numbered so late
 
 ### AD-12 · We own the gold layer
 
-**Decision.** A Fabric notebook, on a schedule, aggregates bronze telemetry into `factdevicemetrics`, `dimpersona`, `factticket` and `facttitlemapping`. The BFF reads views over those tables and nothing else.
+**Decision.** A Fabric notebook, on a schedule, aggregates bronze telemetry into `persona_factdevicemetrics`, `persona_dimpersona`, `persona_factticket` and `persona_facttitlemapping`. The BFF reads views over those tables and nothing else.
 
 **Why.** `fact_device_score_daily` and `fact_device_metric_daily` are empty, so there is no pre-computed score to consume. The measures exist — boot, crash, battery, disk, patch, compliance — but only as raw events. Something must reduce 881,570 boot events to one number per device, and doing it per request (AD-8) is not an option.
 
@@ -215,30 +217,30 @@ Each decision records what we chose, why, and what it costs us. Numbered so late
 
 **Consequence.** A new persona appearing in `dimuser` renders immediately with a neutral colour and a default baseline, and is reported as needing configuration rather than silently mis-graded.
 
-### AD-16 · Mapping confidence measures app fit, not title consistency
+### AD-16 · Mapping confidence measures agreement between HR persona and Entra persona group
 
-**Decision.** Confidence is the degree to which a user's device actually looks like their persona: the share of the persona's expected applications present, penalised by applications characteristic of a different persona, weighted by telemetry coverage.
+**Decision.** A job title × department's confidence is the share of its users whose Entra persona group (`Persona - Engineering`, …) matches the persona their HR record gives them. `why` names the disagreement — "3 of 40 users are in _Persona - Retail_".
 
-**Why.** The original plan derived confidence from how consistently a job title maps to one persona. Discovery killed it: all 21 titles map to exactly one persona, so every score would be 100. The app-fit measure uses data we have in abundance (7.8 million software rows) and answers the question the page actually asks — is this person in the right persona?
+**Why.** Discovery ruled out every other basis. Title consistency: all 21 titles map to exactly one persona. Usage: all 26 software titles are on every device, and Intune required apps, running applications, cloud sign-ins and websites show no persona difference at all (block 11). The only persona signal in the lakehouse is the Entra persona group — and that is also what drives app assignment and access, so a disagreement between it and HR is exactly the mis-mapping that puts the wrong baseline and the wrong apps in front of a real person. Real estates drift here after joiners, movers and leavers; persona changes made in the portal (step 9) create the same drift until group sync catches up.
 
-**Consequence.** `why` becomes a real sentence ("4 of 6 Engineering applications missing; 3 Retail applications present") rather than a stored label. It also means confidence measures something different from a mapping model's own confidence, and the page copy should say which. The score and sentence are stored in `facttitlemapping.ConfidenceScore` and `FlagReason` (AD-17).
+**Consequence.** If the groups agree completely today (block 12b), every title scores 100 and the review queue is honestly empty — the Personas page reports a fully consistent mapping rather than inventing doubt. An earlier design measured app fit from installed software; it was dropped because software cannot tell personas apart in this estate.
 
 ### AD-17 · One source lakehouse, grown step by step
 
-**Decision.** The first lakehouse is the single source. Tables and columns the portal needs are added to it as each step requires them — never up front, never in a second lakehouse. New gold tables follow the naming and shapes of the abandoned `vw_landing_*` design: `dimpersona`, `facttitlemapping`, `factdevicemetrics`, `factticket`.
+**Decision.** The first lakehouse is the single source. Tables and columns the portal needs are added to it as each step requires them — never up front, never in a second lakehouse. New gold tables borrow the names and column shapes of the abandoned `vw_landing_*` design (`dimpersona`, `facttitlemapping`, `factdevicemetrics`, `factticket`), under the `persona_` prefix (AD-19).
 
-**Why.** The second lakehouse offers nothing the first lacks except two network tables the portal does not use, and its views point at tables that no longer exist. Two sources would mean two answers to every question. The borrowed names match the lakehouse's existing lowercase `dim*` / `fact*` convention (`dimuser`, `dimdevice`), and the borrowed column shapes already match the API contract.
+**Why.** The second lakehouse offers nothing the first lacks except two network tables the portal does not use, and its views point at tables that no longer exist. Two sources would mean two answers to every question. The borrowed names follow the lakehouse's lowercase `dim*` / `fact*` convention (`dimuser`, `dimdevice`), and the borrowed column shapes already match the API contract.
 
 **How changes are made.** The SQL analytics endpoint cannot create or alter tables. Each step supplies a **PySpark notebook cell** for every table it adds or changes, **T-SQL** for every view, and a **check query** that must pass before the step moves on. Every script is committed under `sql/` and `notebooks/`, so the lakehouse can be rebuilt from the repository.
 
-**Consequence.** `dimpersona` holds persona identity and display (key, name, subtitle, colour, order) in the lakehouse; editable policy — baselines and weights — stays in the SQL database (AD-4). The network tables stay available if a connectivity measure is wanted later.
+**Consequence.** `persona_dimpersona` holds persona identity and display (key, name, subtitle, colour, order) in the lakehouse; editable policy — baselines and weights — stays in the SQL database (AD-4). The network tables stay available if a connectivity measure is wanted later.
 
 ### AD-18 · Five layers between a column name and the front end
 
 **Decision.** A rename or drop anywhere in Fabric is stopped before it reaches the browser, by five layers, each owning one kind of change:
 
 1. **Notebook input check.** The gold notebook asserts every bronze and `dim*` column it reads — name and type — before writing, and fails naming the column. Delta writes are atomic, so gold stays at its last good version and the portal serves slightly older data, with the freshness label showing its age.
-2. **Views read only tables we own.** `vw_api_v1_*` views read gold tables built by our notebook, never `dimuser`, `dimdevice` or bronze; the notebook copies what it needs. Every output column is aliased to a stable name. A breaking change ships as a `v2` view beside `v1` (AD-3).
+2. **Views read only tables we own.** `persona_vw_api_v1_*` views read gold tables built by our notebook, never `dimuser`, `dimdevice` or bronze; the notebook copies what it needs. Every output column is aliased to a stable name. A breaking change ships as a `v2` view beside `v1` (AD-3).
 3. **One mapper per endpoint, validated at runtime.** SQL column names appear in exactly one file per endpoint, and every row is validated against a `zod` schema before it becomes JSON — a missing column is a clear error naming the field, never a silent `undefined` that the scoring would grade as zero.
 4. **Frozen contract, enforced in CI.** `types.ts` does not change (AD-11); contract tests run the mock API's assertions against the live API and block the deploy on any difference.
 5. **Daily drift check.** A scheduled job compares each view's columns with the expected list and runs a trial query, so a change made upstream between deploys is reported before users meet it.
@@ -246,6 +248,14 @@ Each decision records what we chose, why, and what it costs us. Numbered so late
 **Why.** The ingestion pipelines own bronze and the `dim*` tables and can change them without notice. The six `vw_landing_*` views in the second lakehouse are the proof: their tables disappeared and they failed silently. Under this design the rebuild would have stopped naming the missing table, the drift check would have flagged the views next morning, and the portal would have kept its last good data.
 
 **Consequence.** The front end knows only `/api/*` and `types.ts`; a Fabric rename costs, at most, one notebook or view edit. The notebook carries a copy of the `dimuser` / `dimdevice` columns it uses, refreshed each run.
+
+### AD-19 · Everything we add is prefixed `persona`
+
+**Decision.** Every lakehouse table and view we create is named `persona_` + its name — `persona_dimpersona`, `persona_factticket`, `persona_vw_api_v1_device`. SQL database tables follow the same rule (`persona_policy`, `persona_change`, `persona_provisioning_request`, `persona_app_exception`), since they mirror into OneLake too. A column added to a table we do not own is prefixed `Persona` in the lakehouse's PascalCase (`PersonaCpuScore`). Columns inside our own `persona_` tables keep plain names — the table prefix already marks them — and columns copied from source tables keep their source names (`DeviceId`, `UserId`) so joins read naturally.
+
+**Why.** Seventy-three tables already exist, owned by the ingestion pipelines. The prefix shows at a glance, in the explorer and in any query, which objects this project created, owns and may change — and which it must never touch.
+
+**Consequence.** AD-18 means we never add columns to tables we do not own, so the column rule is a safeguard rather than an expected case. Tables created before this decision (2a) are rebuilt under the new names and the old ones dropped ([notebooks/02_drop_unprefixed_tables.py](notebooks/02_drop_unprefixed_tables.py)).
 
 ---
 
@@ -263,20 +273,20 @@ Every field the portal reads, where it comes from, and what has to be built. Thi
 
 `useFleetModel` combines personas, baselines, devices, migrations and exceptions, so those five endpoints feed **every** page.
 
-| Endpoint                                      | Used by                            | Status | Built from                                                                                    |
-| --------------------------------------------- | ---------------------------------- | ------ | --------------------------------------------------------------------------------------------- |
-| `GET /api/personas`                           | every page                         | 🟡     | `dimuser` ✅ · `dimpersona` ➕                                                                |
-| `GET /api/baselines`                          | every page                         | 🔴     | `cfg_persona_policy` ➕                                                                       |
-| `GET /api/fleet/devices`                      | every page                         | 🟡     | `dimdevice` ✅ · `dimuser` ✅ · `factdevicemetrics` ➕ · `factdeviceapp` ➕ · `factticket` ➕ |
-| `GET /api/change/migrations`                  | every page                         | ⏸      | `factpersonasnapshot` ➕ · `persona_change` ➕                                                |
-| `GET /api/change/exceptions`                  | every page                         | ⏸      | `app_exception` ➕                                                                            |
-| `GET /api/catalog`                            | Persona, Device, Baselines, Switch | 🔴     | `dimpersona` ➕ · `dimpersonaapp` ➕ · `dimticketcategory` ➕                                 |
-| `GET /api/mapping/summary`                    | Personas                           | 🔴     | `facttitlemapping` ➕                                                                         |
-| `GET /api/mapping/review`                     | Personas                           | 🔴     | `facttitlemapping` ➕                                                                         |
-| `GET /api/tickets/summary`                    | Tickets                            | 🔴     | `factticket` ➕                                                                               |
-| `GET /api/persona-changes`                    | Switch                             | ⏸      | `persona_change` ➕                                                                           |
-| `POST /api/persona-changes`                   | Switch                             | ⏸      | writes `persona_change` ➕                                                                    |
-| `POST /api/devices/:id/provisioning-requests` | Device                             | ⏸      | writes `provisioning_request` ➕                                                              |
+| Endpoint                                      | Used by                            | Status | Built from                                                                                                            |
+| --------------------------------------------- | ---------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/personas`                           | every page                         | 🟡     | `dimuser` ✅ · `persona_dimpersona` ➕                                                                                |
+| `GET /api/baselines`                          | every page                         | 🔴     | `persona_policy` ➕                                                                                                   |
+| `GET /api/fleet/devices`                      | every page                         | 🟡     | `dimdevice` ✅ · `dimuser` ✅ · `persona_factdevicemetrics` ➕ · `persona_factdeviceapp` ➕ · `persona_factticket` ➕ |
+| `GET /api/change/migrations`                  | every page                         | ⏸      | `persona_factpersonasnapshot` ➕ · `persona_change` ➕                                                                |
+| `GET /api/change/exceptions`                  | every page                         | ⏸      | `persona_app_exception` ➕                                                                                            |
+| `GET /api/catalog`                            | Persona, Device, Baselines, Switch | 🔴     | `persona_dimpersona` ➕ · `persona_dimpersonaapp` ➕ · `persona_dimticketcategory` ➕                                 |
+| `GET /api/mapping/summary`                    | Personas                           | 🔴     | `persona_facttitlemapping` ➕                                                                                         |
+| `GET /api/mapping/review`                     | Personas                           | 🔴     | `persona_facttitlemapping` ➕                                                                                         |
+| `GET /api/tickets/summary`                    | Tickets                            | 🔴     | `persona_factticket` ➕                                                                                               |
+| `GET /api/persona-changes`                    | Switch                             | ⏸      | `persona_change` ➕                                                                                                   |
+| `POST /api/persona-changes`                   | Switch                             | ⏸      | writes `persona_change` ➕                                                                                            |
+| `POST /api/devices/:id/provisioning-requests` | Device                             | ⏸      | writes `persona_provisioning_request` ➕                                                                              |
 
 🟡 part exists · 🔴 nothing exists yet · ⏸ a workflow table that starts empty.
 
@@ -284,30 +294,30 @@ Every field the portal reads, where it comes from, and what has to be built. Thi
 
 #### `PersonaDef` — `/api/personas`
 
-| Field   | Source                                                                               | Status |
-| ------- | ------------------------------------------------------------------------------------ | ------ |
-| `id`    | `dimpersona.PersonaKey`                                                              | ➕     |
-| `name`  | `dimpersona.PersonaName`                                                             | ➕     |
-| `sub`   | `dimpersona.PersonaSubtitle`                                                         | ➕     |
-| `hue`   | `dimpersona.HexColour`                                                               | ➕     |
-| `count` | `COUNT(*)` of `dimuser`, joined on `dimuser.Persona = dimpersona.SourcePersonaValue` | ✅     |
+| Field   | Source                                                                                       | Status |
+| ------- | -------------------------------------------------------------------------------------------- | ------ |
+| `id`    | `persona_dimpersona.PersonaKey`                                                              | ➕     |
+| `name`  | `persona_dimpersona.PersonaName`                                                             | ➕     |
+| `sub`   | `persona_dimpersona.PersonaSubtitle`                                                         | ➕     |
+| `hue`   | `persona_dimpersona.HexColour`                                                               | ➕     |
+| `count` | `COUNT(*)` of `dimuser`, joined on `dimuser.Persona = persona_dimpersona.SourcePersonaValue` | ✅     |
 
 #### `Baseline` and `Weights` — `/api/baselines`
 
-| Field                                                                                     | Source                                    | Status |
-| ----------------------------------------------------------------------------------------- | ----------------------------------------- | ------ |
-| `ramGB` `storageGB` `cpuScore` `bootSec` `crashes` `freePct` `batteryPct` `ticketsPer100` | `cfg_persona_policy`, one row per persona | ➕     |
-| `prov` `perf` `comp` `exp` `sup`                                                          | `cfg_persona_policy`                      | ➕     |
+| Field                                                                                     | Source                                | Status |
+| ----------------------------------------------------------------------------------------- | ------------------------------------- | ------ |
+| `ramGB` `storageGB` `cpuScore` `bootSec` `crashes` `freePct` `batteryPct` `ticketsPer100` | `persona_policy`, one row per persona | ➕     |
+| `prov` `perf` `comp` `exp` `sup`                                                          | `persona_policy`                      | ➕     |
 
 #### `CatalogResponse` — `/api/catalog`
 
-| Field              | Source                                   | Status |
-| ------------------ | ---------------------------------------- | ------ |
-| `apps`             | `dimpersonaapp`, grouped by persona      | ➕     |
-| `tasksAutomated`   | `dimpersona.TasksAutomatedPerWeek`       | ➕     |
-| `onboardingDays`   | `dimpersona.OnboardingDays`              | ➕     |
-| `ticketCategories` | `dimticketcategory` where `Kind = 'inc'` | ➕     |
-| `catalogItems`     | `dimticketcategory` where `Kind = 'req'` | ➕     |
+| Field              | Source                                           | Status |
+| ------------------ | ------------------------------------------------ | ------ |
+| `apps`             | `persona_dimpersonaapp`, grouped by persona      | ➕     |
+| `tasksAutomated`   | `persona_dimpersona.TasksAutomatedPerWeek`       | ➕     |
+| `onboardingDays`   | `persona_dimpersona.OnboardingDays`              | ➕     |
+| `ticketCategories` | `persona_dimticketcategory` where `Kind = 'inc'` | ➕     |
+| `catalogItems`     | `persona_dimticketcategory` where `Kind = 'req'` | ➕     |
 
 #### `Device` — `/api/fleet/devices`
 
@@ -322,48 +332,48 @@ Every field the portal reads, where it comes from, and what has to be built. Thi
 | `ramGB`      | `dimdevice.RAM_GB`                                                                                                                                                                                                   | ✅     |
 | `storageGB`  | `dimdevice.SSD_GB`                                                                                                                                                                                                   | ✅     |
 | `osBuild`    | `dimdevice.OSBuild`, formatted as `Win11 24H2` / `Win10 22H2` — the compliance pillar tests for a `Win11` prefix ([device.ts:21](packages/scoring/src/device.ts#L21)), so a raw build number would fail every device | 🔧     |
-| `freePct`    | `factdevicemetrics.FreePct` ← `intune_dim_managed_device` free ÷ total storage                                                                                                                                       | 🔧     |
-| `bootSec`    | `factdevicemetrics.BootSec` ← median `tbl_brz_bootperf_event.MainPathBootTimeMs`, 30 days                                                                                                                            | 🔧     |
-| `crashes`    | `factdevicemetrics.Crashes30d` ← `tbl_brz_crashdiag_bsod` + `_abnormal` events, 30 days                                                                                                                              | 🔧     |
-| `batteryPct` | `factdevicemetrics.BatteryHealthPct` ← latest `tbl_brz_hf_battery.HealthPercent`; null on desktops                                                                                                                   | 🔧     |
-| `patched`    | `factdevicemetrics.IsPatched` ← latest `tbl_brz_intune_windows_update_status`                                                                                                                                        | 🔧     |
-| `lastSeen`   | `factdevicemetrics.LastSeenDays` ← days since `intune_dim_managed_device.LastSyncDateTime`                                                                                                                           | 🔧     |
-| `cpuScore`   | `dimcpumodel.CpuScore` via `dimdevice.CPUModel`                                                                                                                                                                      | ➕     |
-| `installed`  | `factdeviceapp`, catalogue apps only (AD-13)                                                                                                                                                                         | ➕     |
-| `tickets`    | `factticket` where `Kind = 'inc'`, by device                                                                                                                                                                         | ➕     |
+| `freePct`    | `persona_factdevicemetrics.FreePct` ← `intune_dim_managed_device` free ÷ total storage                                                                                                                               | 🔧     |
+| `bootSec`    | `persona_factdevicemetrics.BootSec` ← median `tbl_brz_bootperf_event.MainPathBootTimeMs`, 30 days                                                                                                                    | 🔧     |
+| `crashes`    | `persona_factdevicemetrics.Crashes30d` ← `tbl_brz_crashdiag_bsod` + `_abnormal` events, 30 days                                                                                                                      | 🔧     |
+| `batteryPct` | `persona_factdevicemetrics.BatteryHealthPct` ← latest `tbl_brz_hf_battery.HealthPercent`; null on desktops                                                                                                           | 🔧     |
+| `patched`    | `persona_factdevicemetrics.IsPatched` ← latest `tbl_brz_intune_windows_update_status`                                                                                                                                | 🔧     |
+| `lastSeen`   | `persona_factdevicemetrics.LastSeenDays` ← days since `intune_dim_managed_device.LastSyncDateTime`                                                                                                                   | 🔧     |
+| `cpuScore`   | `persona_dimcpumodel.CpuScore` via `dimdevice.CPUModel`                                                                                                                                                              | ➕     |
+| `installed`  | `persona_factdeviceapp`, catalogue apps only (AD-13)                                                                                                                                                                 | ➕     |
+| `tickets`    | `persona_factticket` where `Kind = 'inc'`, by device                                                                                                                                                                 | ➕     |
 
 #### `DeviceTicket` and `FleetTicket` — devices and `/api/tickets/summary`
 
-| Field            | Source                                                                          | Status |
-| ---------------- | ------------------------------------------------------------------------------- | ------ |
-| `number` / `id`  | `factticket.TicketId` ← epfix `jobId`                                           | ➕     |
-| `pid`            | `factticket.PersonaKey` via the device's primary user                           | ➕     |
-| `uid` `dept`     | `factticket.UserId`, `Department` ← `dimuser`                                   | ➕     |
-| `cat`            | `factticket.Category` ← `escalationReason`, matched through `dimticketcategory` | ➕     |
-| `short`          | `factticket.ShortDescription` ← `detail`                                        | ➕     |
-| `priority`       | `factticket.Priority` — derived from outcome (AD-10)                            | ➕     |
-| `state` `open`   | `factticket.State`, `IsOpen` ← latest `eventType` per job                       | ➕     |
-| `group`          | `factticket.AssignmentGroup` ← `agentName`                                      | ➕     |
-| `ageDays` `week` | `factticket.OpenedUtc` ← `timestampUtc` (text, cast in gold)                    | ➕     |
-| `sla`            | `factticket.IsSlaBreached` ← age against `dimslatarget` for its priority        | ➕     |
+| Field            | Source                                                                                          | Status |
+| ---------------- | ----------------------------------------------------------------------------------------------- | ------ |
+| `number` / `id`  | `persona_factticket.TicketId` ← epfix `jobId`                                                   | ➕     |
+| `pid`            | `persona_factticket.PersonaKey` via the device's primary user                                   | ➕     |
+| `uid` `dept`     | `persona_factticket.UserId`, `Department` ← `dimuser`                                           | ➕     |
+| `cat`            | `persona_factticket.Category` ← `escalationReason`, matched through `persona_dimticketcategory` | ➕     |
+| `short`          | `persona_factticket.ShortDescription` ← `detail`                                                | ➕     |
+| `priority`       | `persona_factticket.Priority` — derived from outcome (AD-10)                                    | ➕     |
+| `state` `open`   | `persona_factticket.State`, `IsOpen` ← latest `eventType` per job                               | ➕     |
+| `group`          | `persona_factticket.AssignmentGroup` ← `agentName`                                              | ➕     |
+| `ageDays` `week` | `persona_factticket.OpenedUtc` ← `timestampUtc` (text, cast in gold)                            | ➕     |
+| `sla`            | `persona_factticket.IsSlaBreached` ← age against `persona_dimslatarget` for its priority        | ➕     |
 
 #### `TitleRow` and `MappingSummary` — `/api/mapping/*`
 
-| Field                                                                        | Source                                                              | Status |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------ |
-| `t` `dept` `pid`                                                             | `facttitlemapping.JobTitle`, `Department`, `PersonaKey` ← `dimuser` | ➕     |
-| `conf`                                                                       | `facttitlemapping.ConfidenceScore` — app fit (AD-16)                | ➕     |
-| `why`                                                                        | `facttitlemapping.FlagReason`                                       | ➕     |
-| `avgConfidence` `distinctTitles` `titlesMapped` `bands` `byPersona` `byDept` | aggregates of `facttitlemapping`                                    | ➕     |
+| Field                                                                        | Source                                                                       | Status |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------ |
+| `t` `dept` `pid`                                                             | `persona_facttitlemapping.JobTitle`, `Department`, `PersonaKey` ← `dimuser`  | ➕     |
+| `conf`                                                                       | `persona_facttitlemapping.ConfidenceScore` — persona-group agreement (AD-16) | ➕     |
+| `why`                                                                        | `persona_facttitlemapping.FlagReason`                                        | ➕     |
+| `avgConfidence` `distinctTitles` `titlesMapped` `bands` `byPersona` `byDept` | aggregates of `persona_facttitlemapping`                                     | ➕     |
 
 #### `Migration`, `AppException`, `PersonaChange` — change and switch
 
-| Type            | Source                                                                              | Status |
-| --------------- | ----------------------------------------------------------------------------------- | ------ |
-| `Migration`     | persona moves between consecutive `factpersonasnapshot` days, plus `persona_change` | ⏸      |
-| `AppException`  | `app_exception` — no source exists; empty until the approval workflow is used       | ⏸      |
-| `PersonaChange` | `persona_change`                                                                    | ⏸      |
-| Provisioning    | `provisioning_request` — returns `number` and `group`                               | ⏸      |
+| Type            | Source                                                                                      | Status |
+| --------------- | ------------------------------------------------------------------------------------------- | ------ |
+| `Migration`     | persona moves between consecutive `persona_factpersonasnapshot` days, plus `persona_change` | ⏸      |
+| `AppException`  | `persona_app_exception` — no source exists; empty until the approval workflow is used       | ⏸      |
+| `PersonaChange` | `persona_change`                                                                            | ⏸      |
+| Provisioning    | `persona_provisioning_request` — returns `number` and `group`                               | ⏸      |
 
 ### Build list — tables to create
 
@@ -371,7 +381,7 @@ Types are Spark types for the lakehouse and T-SQL types for the SQL database.
 
 #### Lakehouse — reference tables (step 2)
 
-**`dimpersona`** — one row per persona. Borrowed from the `vw_landing_*` design (AD-17), extended.
+**`persona_dimpersona`** — one row per persona. Borrowed from the `vw_landing_*` design (AD-17), extended.
 
 | Column                  | Type   | Notes                                              |
 | ----------------------- | ------ | -------------------------------------------------- |
@@ -384,7 +394,7 @@ Types are Spark types for the lakehouse and T-SQL types for the SQL database.
 | `TasksAutomatedPerWeek` | int    | Switch page                                        |
 | `OnboardingDays`        | int    | Switch page                                        |
 
-**`dimpersonaapp`** — the per-persona application contract.
+**`persona_dimpersonaapp`** — the per-persona application contract.
 
 | Column         | Type   | Notes                                                                              |
 | -------------- | ------ | ---------------------------------------------------------------------------------- |
@@ -393,7 +403,7 @@ Types are Spark types for the lakehouse and T-SQL types for the SQL database.
 | `MatchPattern` | string | `LIKE` pattern against `tbl_brz_systeminfo_software.Name`, which uses vendor names |
 | `SortOrder`    | int    |                                                                                    |
 
-**`dimcpumodel`** — five rows, one per `dimdevice.CPUModel`.
+**`persona_dimcpumodel`** — five rows, one per `dimdevice.CPUModel`.
 
 | Column     | Type   | Notes                                 |
 | ---------- | ------ | ------------------------------------- |
@@ -411,7 +421,7 @@ Seed values. The model names carry only a core count — no vendor or generation
 | `Windows 10-core` | 72         | 16 GB · 512 GB |
 | `Windows 12-core` | 88         | 32 GB · 1 TB   |
 
-**`dimticketcategory`** — portal categories and how source values map to them.
+**`persona_dimticketcategory`** — portal categories and how source values map to them.
 
 | Column         | Type   | Notes                                                      |
 | -------------- | ------ | ---------------------------------------------------------- |
@@ -420,7 +430,7 @@ Seed values. The model names carry only a core count — no vendor or generation
 | `MatchValue`   | string | Source value mapped here (`escalationReason` / app intent) |
 | `SortOrder`    | int    | Drives chart colour order                                  |
 
-**`dimslatarget`** — makes `sla` a derivation from a stated target, not a guess.
+**`persona_dimslatarget`** — makes `sla` a derivation from a stated target, not a guess.
 
 | Column        | Type   | Notes             |
 | ------------- | ------ | ----------------- |
@@ -429,14 +439,14 @@ Seed values. The model names carry only a core count — no vendor or generation
 
 #### Lakehouse — gold tables (step 2)
 
-**`factdevicemetrics`** — one row per device per snapshot date. No stored scores (AD-6).
+**`persona_factdevicemetrics`** — one row per device per snapshot date. No stored scores (AD-6).
 
 | Column             | Type    | Notes                                                  |
 | ------------------ | ------- | ------------------------------------------------------ |
 | `SnapshotDate`     | date    |                                                        |
 | `DeviceId`         | string  | `dimdevice.DeviceId`                                   |
 | `EntraDeviceId`    | string  | Via the identity bridge (AD-7)                         |
-| `PersonaKey`       | string  | Via primary user → `dimpersona`                        |
+| `PersonaKey`       | string  | Via primary user → `persona_dimpersona`                |
 | `FreePct`          | double  |                                                        |
 | `BootSec`          | double  | Median, 30 days                                        |
 | `Crashes30d`       | int     |                                                        |
@@ -445,48 +455,48 @@ Seed values. The model names carry only a core count — no vendor or generation
 | `LastSeenDays`     | int     |                                                        |
 | `MissingMeasures`  | string  | Comma list of measures with no telemetry, for coverage |
 
-**`factdeviceapp`** — catalogue applications found on each device (AD-13).
+**`persona_factdeviceapp`** — catalogue applications found on each device (AD-13).
 
-| Column          | Type   | Notes                                                    |
-| --------------- | ------ | -------------------------------------------------------- |
-| `DeviceId`      | string |                                                          |
-| `PersonaKey`    | string | The device's persona                                     |
-| `AppName`       | string | `dimpersonaapp.AppName`                                  |
-| `AppPersonaKey` | string | Which persona's catalogue it belongs to — powers app fit |
+| Column          | Type   | Notes                                        |
+| --------------- | ------ | -------------------------------------------- |
+| `DeviceId`      | string |                                              |
+| `PersonaKey`    | string | The device's persona                         |
+| `AppName`       | string | `persona_dimpersonaapp.AppName`              |
+| `AppPersonaKey` | string | Which persona's catalogue the app belongs to |
 
-**`factticket`** — one row per ticket; incidents from the epfix lifecycle, requests from app deployment.
+**`persona_factticket`** — one row per ticket; incidents from the epfix lifecycle, requests from app deployment.
 
-| Column             | Type      | Notes                   |
-| ------------------ | --------- | ----------------------- |
-| `TicketId`         | string    | epfix `jobId`           |
-| `Kind`             | string    | `inc` / `req`           |
-| `DeviceId`         | string    |                         |
-| `UserId`           | string    |                         |
-| `PersonaKey`       | string    |                         |
-| `Department`       | string    |                         |
-| `Category`         | string    | Via `dimticketcategory` |
-| `ShortDescription` | string    |                         |
-| `Priority`         | string    | Derived (AD-10)         |
-| `State`            | string    | Latest lifecycle state  |
-| `IsOpen`           | boolean   |                         |
-| `AssignmentGroup`  | string    |                         |
-| `OpenedUtc`        | timestamp |                         |
-| `ClosedUtc`        | timestamp | Null while open         |
-| `IsSlaBreached`    | boolean   | Age vs `dimslatarget`   |
+| Column             | Type      | Notes                           |
+| ------------------ | --------- | ------------------------------- |
+| `TicketId`         | string    | epfix `jobId`                   |
+| `Kind`             | string    | `inc` / `req`                   |
+| `DeviceId`         | string    |                                 |
+| `UserId`           | string    |                                 |
+| `PersonaKey`       | string    |                                 |
+| `Department`       | string    |                                 |
+| `Category`         | string    | Via `persona_dimticketcategory` |
+| `ShortDescription` | string    |                                 |
+| `Priority`         | string    | Derived (AD-10)                 |
+| `State`            | string    | Latest lifecycle state          |
+| `IsOpen`           | boolean   |                                 |
+| `AssignmentGroup`  | string    |                                 |
+| `OpenedUtc`        | timestamp |                                 |
+| `ClosedUtc`        | timestamp | Null while open                 |
+| `IsSlaBreached`    | boolean   | Age vs `persona_dimslatarget`   |
 
-**`facttitlemapping`** — one row per job title × department. Borrowed shape (AD-17).
+**`persona_facttitlemapping`** — one row per job title × department. Borrowed shape (AD-17).
 
-| Column            | Type   | Notes                                                         |
-| ----------------- | ------ | ------------------------------------------------------------- |
-| `JobTitle`        | string |                                                               |
-| `Department`      | string |                                                               |
-| `PersonaKey`      | string |                                                               |
-| `PersonaName`     | string |                                                               |
-| `UserCount`       | int    |                                                               |
-| `ConfidenceScore` | int    | 0–100, app fit (AD-16)                                        |
-| `FlagReason`      | string | e.g. "4 of 6 Engineering apps missing; 3 Retail apps present" |
+| Column            | Type   | Notes                                        |
+| ----------------- | ------ | -------------------------------------------- |
+| `JobTitle`        | string |                                              |
+| `Department`      | string |                                              |
+| `PersonaKey`      | string |                                              |
+| `PersonaName`     | string |                                              |
+| `UserCount`       | int    |                                              |
+| `ConfidenceScore` | int    | 0–100, persona-group agreement (AD-16)       |
+| `FlagReason`      | string | e.g. "3 of 40 users are in Persona - Retail" |
 
-**`factpersonasnapshot`** — daily copy of every user's persona; the source of migration history.
+**`persona_factpersonasnapshot`** — daily copy of every user's persona; the source of migration history.
 
 | Column         | Type   | Notes |
 | -------------- | ------ | ----- |
@@ -496,7 +506,7 @@ Seed values. The model names carry only a core count — no vendor or generation
 
 #### SQL database in Fabric — policy and writeback (steps 5 and 9)
 
-**`cfg_persona_policy`** — baseline and weights, one row per persona.
+**`persona_policy`** — baseline and weights, one row per persona.
 
 | Column                                                                                    | Type               |
 | ----------------------------------------------------------------------------------------- | ------------------ |
@@ -507,13 +517,13 @@ Seed values. The model names carry only a core count — no vendor or generation
 
 **`persona_change`** — `ChangeId`, `UserId`, `DeviceId`, `FromPersonaKey`, `ToPersonaKey`, `RequestedBy` (from Entra, never the request body), `RequestedUtc`, `IdempotencyKey` (unique).
 
-**`provisioning_request`** — `RequestNumber`, `DeviceId`, `AssignmentGroup`, `Status`, `RequestedBy`, `RequestedUtc`, `IdempotencyKey` (unique).
+**`persona_provisioning_request`** — `RequestNumber`, `DeviceId`, `AssignmentGroup`, `Status`, `RequestedBy`, `RequestedUtc`, `IdempotencyKey` (unique).
 
-**`app_exception`** — `ExceptionId`, `UserId`, `PersonaKey`, `AppName`, `Reason`, `State` (`Pending` / `Approved` / `Rejected`), `RaisedUtc`, `DecidedBy`, `DecidedUtc`.
+**`persona_app_exception`** — `ExceptionId`, `UserId`, `PersonaKey`, `AppName`, `Reason`, `State` (`Pending` / `Approved` / `Rejected`), `RaisedUtc`, `DecidedBy`, `DecidedUtc`.
 
 ### Persona seed values
 
-RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/discovery.sql](sql/discovery.sql) block 9). All other values reuse the wireframe's, except Retail, which is new. **Adopted 18 Sep 2026**; changeable until step 5 seeds `cfg_persona_policy`.
+RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/discovery.sql](sql/discovery.sql) block 9). All other values reuse the wireframe's, except Retail, which is new. **Adopted 18 Sep 2026**; changeable until step 5 seeds `persona_policy`.
 
 | Key      | `dimuser.Persona` | Name             | Tier    | RAM | Storage | CPU | Boot s | Crashes | Free % | Battery % | Tickets/100 | Weights prov·perf·comp·exp·sup | Tasks/wk | Onboard days | Colour    |
 | -------- | ----------------- | ---------------- | ------- | --- | ------- | --- | ------ | ------- | ------ | --------- | ----------- | ------------------------------ | -------- | ------------ | --------- |
@@ -539,7 +549,7 @@ RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/dis
 
 **Engineering stays at 32 GB; Executive moves to 16 GB.** A baseline states what the work needs, never what makes a chart look balanced — choosing one to soften the result would be inventing a number (AD-10). Engineering runs Docker Desktop, WSL2 and IntelliJ side by side, for which 32 GB is the enterprise norm; it must be the full 12-core tier, because 32 GB ships with nothing else. The stark result — four in five engineers critically short, while three-quarters of Retail is over-provisioned — is exactly the tour's claim that over-provisioning and critical mismatch land on different personas. Executive work (Office, Power BI, board portal) does not need a workstation; 16 GB on the 10-core tier keeps the wireframe's CPU intent (70 → 72). An earlier draft moved Engineering to 16 GB for a readable chart; that was reversed for the reason above.
 
-**The finding this data will show.** Hardware has been allocated with no regard to persona: every persona, Retail included, has about a fifth of its people on 32 GB 12-core workstations and a quarter on 8 GB machines. Three-quarters of Retail is over-provisioned — the spend the tour's second act talks about — while a fifth of Engineering is critically short. Baselines for boot time, crashes, free space and battery are calibrated in step 2, once `factdevicemetrics` exists.
+**The finding this data will show.** Hardware has been allocated with no regard to persona: every persona, Retail included, has about a fifth of its people on 32 GB 12-core workstations and a quarter on 8 GB machines. Three-quarters of Retail is over-provisioned — the spend the tour's second act talks about — while a fifth of Engineering is critically short. Baselines for boot time, crashes, free space and battery are calibrated in step 2, once `persona_factdevicemetrics` exists.
 
 **Why these Retail values.** Shop-floor and point-of-sale work is light, so RAM (8 GB) and CPU (6-core) sit below Call Centre. Tills must be up when the store opens, so boot is tighter (40 s) and crash tolerance lower (2). Handhelds run a full shift off the charger, so battery health is high (80 %). Card payments put tills in PCI DSS scope, so compliance carries more weight (25) and provisioning less (15). High seasonal turnover means one-day onboarding. The colour is Data Science's, which this estate does not have and which already passed the WCAG AA audit in all seven themes.
 
@@ -557,28 +567,55 @@ RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/dis
 
 **What we do**
 
-- Reference tables, seeded from notebook cells committed in `notebooks/`: `dimpersona`, `dimpersonaapp`, `dimcpumodel`, `dimticketcategory`, `dimslatarget`.
-- A Fabric notebook writing the gold tables: `factdevicemetrics`, `factdeviceapp`, `factticket`, `facttitlemapping` (app-fit confidence, AD-16) and the daily `factpersonasnapshot` that becomes migration history. Columns for every table are in the front-end to lakehouse map.
+- Reference tables, seeded from notebook cells committed in `notebooks/`: `persona_dimpersona`, `persona_dimpersonaapp`, `persona_dimcpumodel`, `persona_dimticketcategory`, `persona_dimslatarget`.
+- A Fabric notebook writing the gold tables: `persona_factdevicemetrics`, `persona_factdeviceapp`, `persona_factticket`, `persona_facttitlemapping` (persona-group agreement, AD-16) and the daily `persona_factpersonasnapshot` that becomes migration history. Columns for every table are in the front-end to lakehouse map.
 - The identity spine as a single resolved view, joined by everything else (AD-7).
 - An input schema check at the top of the notebook: every bronze and `dim*` column it reads, by name and type; the run fails naming anything missing (AD-18).
 - Views read only our gold tables — the notebook copies the `dimuser` and `dimdevice` columns it needs (AD-18).
-- `vw_api_v1_*` views over those tables — the only objects the BFF may read (AD-3).
+- `persona_vw_api_v1_*` views over those tables — the only objects the BFF may read (AD-3).
 - Scheduled through a Data Factory pipeline, with a run log and freshness timestamp the API can expose.
 
 **Parts** — each is run in Fabric by you and checked before the next begins.
 
-| Part | Delivers                                                                                         | Files                                                                                                                 | Status            |
-| ---- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| 2a   | `dimpersona`, `dimcpumodel`, `dimslatarget` — values already known                               | [notebooks/02a_reference_tables.py](notebooks/02a_reference_tables.py) · [check](sql/checks/02a_reference_tables.sql) | Done 18 Sep 2026  |
-| 2b   | Value discovery: time ranges, OS values, sites, patch states, ticket lifecycle, apps per persona | [sql/discovery.sql](sql/discovery.sql) block 10                                                                       | Ready to run      |
-| 2c   | `dimpersonaapp`, `dimticketcategory` — built from 2b's answers                                   | —                                                                                                                     | Waiting on 2b     |
-| 2d   | Gold notebook: input schema check, identity spine, the five `fact*` tables                       | —                                                                                                                     | Waiting on 2b, 2c |
-| 2e   | `vw_api_v1_*` views; calibrate boot, crash, free-space and battery baselines                     | —                                                                                                                     | Waiting on 2d     |
-| 2f   | Daily schedule through a Data Factory pipeline, with run log and freshness timestamp             | —                                                                                                                     | Waiting on 2e     |
+| Part | Delivers                                                                                         | Files                                                                                                                 | Status                                           |
+| ---- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| 2a   | `persona_dimpersona`, `persona_dimcpumodel`, `persona_dimslatarget` — values already known       | [notebooks/02a_reference_tables.py](notebooks/02a_reference_tables.py) · [check](sql/checks/02a_reference_tables.sql) | Done 18 Sep 2026 (re-run under `persona_` names) |
+| 2b   | Value discovery: time ranges, OS values, sites, patch states, ticket lifecycle, apps per persona | [sql/discovery.sql](sql/discovery.sql) block 10                                                                       | Done; follow-up block 11                         |
+| 2c   | `persona_dimpersonaapp`, `persona_dimticketcategory` — built from 2b's answers                   | [notebooks/02c_reference_tables.py](notebooks/02c_reference_tables.py) · [check](sql/checks/02c_reference_tables.sql) | Done 18 Sep 2026                                 |
+| 2d   | Gold notebook: input schema check, identity spine, the five `fact*` tables                       | —                                                                                                                     | Waiting on 2b, 2c                                |
+| 2e   | `persona_vw_api_v1_*` views; calibrate boot, crash, free-space and battery baselines             | —                                                                                                                     | Waiting on 2d                                    |
+| 2f   | Daily schedule through a Data Factory pipeline, with run log and freshness timestamp             | —                                                                                                                     | Waiting on 2e                                    |
 
 **2a result (18 Sep 2026).** Run in `Persona_EPInsight_Lakehouse_Dev`. All 5,000 users resolve to one of the six personas and all 5,000 devices to a CPU score (4-core 452 · 6-core 725 · 8-core 2,015 · 10-core 776 · 12-core 1,032); four SLA targets present. Notebook check printed `OK`; all four SQL endpoint checks matched.
 
-**Display names follow the organisation.** `dimpersona` uses the names in `dimuser` — _Call Centre_ and _Field Services_ — rather than the wireframe's _Contact Centre_ and _Field Engineer_, so the portal speaks the estate's own language. Keys (`CC`, `FIELD`) are unchanged.
+**2b result (18 Sep 2026).** Settled by block 10:
+
+- **Window.** All telemetry spans 12 Jul – 9 Sep 2026 and matches the bridge 100%. Windows are anchored to the data's latest date (`AsOfDate`, currently 9 Sep), never to today; `AsOfDate` is stored in gold and drives the freshness label.
+- **Crashes.** BSODs on 46 devices, abnormal shutdowns on 183; every other device is a real zero.
+- **OS.** Builds 26100 → `Win11 24H2` (2,216), 22631 → `Win11 23H2` (1,769), 19045 → `Win10 22H2` (1,015).
+- **Site.** `dimuser.LocationRegion` (Bengaluru, London, Remote, …).
+- **Patched.** The device's latest `UpdateStatus` is `upToDate` (the other value is `updateFailed`).
+- **Incidents.** Of 43,017 jobs: 27,501 success, 7,991 failed, 3,508 escalated, 2,189 awaiting reboot, 1,828 skipped. Incidents are jobs ending ESCALATED (P2) or FAILED (P3). With no resolution events in the data, a ticket closes when the same rule next succeeds on the same device.
+- **Two surprises, followed up in block 11.** The software inventory is identical on every device (every title on 100% of the fleet), so installed software carries no persona signal and AD-16 needs another source. `escalationReason` has one value, so ticket categories must come from `ruleId`.
+- **Block 11.** No persona signal in software (26 titles, all on every device), Intune required apps, running apps, sign-ins or websites; the only signal is an Entra group per persona, which becomes the basis of mapping confidence (AD-16). Ticket categories come from six remediation rules (AD-10). Block 12: all 5,000 users sit in exactly one persona group, none disagrees with the HR persona and there are no past memberships — so confidence is 100 for every title and the review queue is empty until persona changes create drift. Service requests are measured in the 2d notebook (first appearance of an `available` app inside the window) rather than assumed.
+- **Ticket ceilings.** 3,508 escalations in 59 days is about 36 per 100 devices a month against wireframe ceilings of 6–16; ceilings are calibrated in 2e with boot, crash, free space and battery.
+
+**2c — app contracts (proposed).** Every device has all 26 titles, so the contract is policy, not measurement; it lists what distinguishes a persona and leaves out tools everyone gets (Edge, Defender, OneDrive, 7-Zip, Notepad++, VLC, WinSCP). Editable by re-running the notebook.
+
+| Persona          | Contract                                                                      |
+| ---------------- | ----------------------------------------------------------------------------- |
+| Engineering      | Visual Studio Code, Git, Node.js, Python 3.12, Java Runtime, Windows Terminal |
+| Knowledge Worker | Microsoft 365 Apps, Power BI Desktop, Adobe Acrobat Reader, Snagit            |
+| Call Centre      | SAP GUI, Zoom Workplace, Slack, Greenshot                                     |
+| Field Services   | SAP GUI, Cisco Secure Client, PuTTY, FileZilla                                |
+| Executive        | Microsoft 365 Apps, Power BI Desktop, Zoom Workplace, Adobe Acrobat Reader    |
+| Retail           | SAP GUI, Google Chrome, Microsoft Teams                                       |
+
+Because every device already has every title, the Switch page will always report zero apps to install, and every device carries other personas' software. That is a finding, not a fault: software is deployed to everyone regardless of persona, the licence-waste mirror of the hardware result.
+
+**2c result (18 Sep 2026).** 25 contract rows (DEV 6 · KW 4 · CC 4 · FIELD 4 · EXEC 4 · RETAIL 3), every one matching a real software title; six incident categories totalling 11,499 incidents. The unprefixed tables from the first 2a run were dropped; only `persona_` tables remain.
+
+**Display names follow the organisation.** `persona_dimpersona` uses the names in `dimuser` — _Call Centre_ and _Field Services_ — rather than the wireframe's _Contact Centre_ and _Field Engineer_, so the portal speaks the estate's own language. Keys (`CC`, `FIELD`) are unchanged.
 
 **Test checkpoint**
 
@@ -631,13 +668,13 @@ RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/dis
 
 **What we do**
 
-- Create a SQL database in Fabric with `cfg_persona_policy`, `persona_change`, `provisioning_request` and `app_exception`.
+- Create a SQL database in Fabric with `persona_policy`, `persona_change`, `persona_provisioning_request` and `persona_app_exception`.
 - Calibrate each persona's baseline against the fleet's real distribution ([sql/discovery.sql](sql/discovery.sql) block 9), then seed the six personas from the seed table — including the approved **Retail** values.
 - Schema and seed data as versioned SQL in `sql/config/`.
 
 **Test checkpoint**
 
-- Every `dimpersona` key has a `cfg_persona_policy` row, and each row's weights sum to 100.
+- Every `persona_dimpersona` key has a `persona_policy` row, and each row's weights sum to 100.
 - No persona has more than an agreed share of devices under baseline purely because a reused wireframe value does not fit this fleet.
 
 ---
@@ -664,7 +701,7 @@ RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/dis
 
 **What we do**
 
-- `GET /api/fleet/devices` from `vw_api_v1_device`, with `installed[]` filtered to the catalogue (AD-13).
+- `GET /api/fleet/devices` from `persona_vw_api_v1_device`, with `installed[]` filtered to the catalogue (AD-13).
 - Grade with `@pfc/scoring` (AD-6). 5,000 devices ship whole; measure the payload and revisit only if it exceeds budget.
 - Devices with missing telemetry are marked as such rather than defaulted to zero, so they cannot silently drag a persona's health down.
 
@@ -681,8 +718,9 @@ RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/dis
 
 **What we do**
 
-- `GET /api/mapping/summary` and `/api/mapping/review` over the app-fit confidence measure (AD-16), with a generated `why`.
-- `GET /api/tickets/summary` from `factticket` (AD-10), honouring the `kind`, persona and category parameters; confirm `tbl_brz_intune_app_deployment` for the requests tab.
+- `GET /api/mapping/summary` and `/api/mapping/review` over the persona-group agreement measure (AD-16), with a generated `why`.
+- Make the front end read ticket categories from `/api/catalog` instead of `lib/categories.ts`: `charts/colors.ts` builds its colour scales from the API's lists, and the persona page's ticket mix groups by the API's categories (AD-10).
+- `GET /api/tickets/summary` from `persona_factticket` (AD-10), honouring the `kind`, persona and category parameters; confirm `tbl_brz_intune_app_deployment` for the requests tab.
 - Aggregation in SQL, with a test proving it agrees with the TypeScript aggregation in `apps/web/src/mocks/aggregate.ts`.
 
 **Test checkpoint**
@@ -752,20 +790,20 @@ RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/dis
 
 Answered items keep their evidence. Queries are in [sql/discovery.sql](sql/discovery.sql).
 
-| #   | Question                                                         | Answer                                                                              |
-| --- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| 1   | Devices whole or paginated?                                      | ✅ Whole — 5,000 devices, with `installed[]` filtered (AD-13)                       |
-| 2   | Synthetic, real or mixed?                                        | ✅ Entirely synthetic — labelled, not filtered (AD-14)                              |
-| 3   | Do persona values match the portal's seven?                      | ✅ No — six, including a new Retail persona (AD-15)                                 |
-| 4   | Is consistency-based mapping confidence viable?                  | ✅ No — all 21 titles map to one persona; replaced by app fit (AD-16)               |
-| 5   | Is `dimdevice.DeviceId` the Entra device id?                     | ✅ No — bridge required, 100% coverage (AD-7)                                       |
-| 6   | Days of `fact_device_score_daily` history?                       | ✅ None — table empty (AD-12)                                                       |
-| 7   | What is in `fact_device_metric_daily.MetricKey`?                 | ✅ Nothing — table empty (AD-12)                                                    |
-| 8   | Is the endpoint-fix lifecycle a usable ticket substitute?        | ✅ Yes — 3,508 escalations, 7,991 failures, with reason and requester (AD-10)       |
-| 9   | Is there a ServiceNow (or equivalent) source to ingest?          | Open                                                                                |
-| 10  | Subscription and resource group — `Shashi-RG`, Central India?    | Open                                                                                |
-| 11  | Entra sign-in required, and which group gets `editor`?           | Open                                                                                |
-| 12  | **Is a DEX scoring pipeline meant to populate the fact tables?** | Open — decides whether step 2 builds gold or waits for it                           |
-| 13  | **What baseline should the Retail persona have?**                | ✅ 8 GB · 256 GB · 6-core; all six baselines adopted 18 Sep 2026                    |
-| 14  | Is `tbl_brz_intune_app_deployment` the right requests source?    | Open — confirmed in step 8                                                          |
-| 15  | Which lakehouse is the source?                                   | ✅ The first; the second differs only by two unused tables and broken views (AD-17) |
+| #   | Question                                                         | Answer                                                                                |
+| --- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 1   | Devices whole or paginated?                                      | ✅ Whole — 5,000 devices, with `installed[]` filtered (AD-13)                         |
+| 2   | Synthetic, real or mixed?                                        | ✅ Entirely synthetic — labelled, not filtered (AD-14)                                |
+| 3   | Do persona values match the portal's seven?                      | ✅ No — six, including a new Retail persona (AD-15)                                   |
+| 4   | Is consistency-based mapping confidence viable?                  | ✅ No — all 21 titles map to one persona; replaced by persona-group agreement (AD-16) |
+| 5   | Is `dimdevice.DeviceId` the Entra device id?                     | ✅ No — bridge required, 100% coverage (AD-7)                                         |
+| 6   | Days of `fact_device_score_daily` history?                       | ✅ None — table empty (AD-12)                                                         |
+| 7   | What is in `fact_device_metric_daily.MetricKey`?                 | ✅ Nothing — table empty (AD-12)                                                      |
+| 8   | Is the endpoint-fix lifecycle a usable ticket substitute?        | ✅ Yes — 3,508 escalations, 7,991 failures, with reason and requester (AD-10)         |
+| 9   | Is there a ServiceNow (or equivalent) source to ingest?          | Open                                                                                  |
+| 10  | Subscription and resource group — `Shashi-RG`, Central India?    | Open                                                                                  |
+| 11  | Entra sign-in required, and which group gets `editor`?           | Open                                                                                  |
+| 12  | **Is a DEX scoring pipeline meant to populate the fact tables?** | Open — decides whether step 2 builds gold or waits for it                             |
+| 13  | **What baseline should the Retail persona have?**                | ✅ 8 GB · 256 GB · 6-core; all six baselines adopted 18 Sep 2026                      |
+| 14  | Is `tbl_brz_intune_app_deployment` the right requests source?    | Open — confirmed in step 8                                                            |
+| 15  | Which lakehouse is the source?                                   | ✅ The first; the second differs only by two unused tables and broken views (AD-17)   |

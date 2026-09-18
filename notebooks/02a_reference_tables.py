@@ -1,6 +1,6 @@
 # Persona Fleet Command — Step 2a: reference tables
 #
-# Creates dimpersona, dimcpumodel and dimslatarget in the lakehouse.
+# Creates persona_dimpersona, persona_dimcpumodel and persona_dimslatarget in the lakehouse.
 #
 # How to run
 #   1. In Fabric, create a notebook and attach the lakehouse as its default
@@ -10,7 +10,7 @@
 #      tables, then run sql/checks/02a_reference_tables.sql there.
 #
 # Safe to re-run: each table is overwritten with exactly the values below.
-# Values come from backend.md → "Persona seed values" and "dimcpumodel".
+# Values come from backend.md → "Persona seed values" and "persona_dimcpumodel".
 
 # %% [1] Helper
 from pyspark.sql.types import IntegerType, StringType, StructField, StructType
@@ -29,7 +29,7 @@ def save(rows, fields, table):
     print(f"{table}: {len(rows)} rows written")
 
 
-# %% [2] dimpersona — persona identity and display
+# %% [2] persona_dimpersona — persona identity and display
 # SourcePersonaValue must match dimuser.Persona exactly; it is the join key.
 save(
     [
@@ -50,10 +50,10 @@ save(
         ("TasksAutomatedPerWeek", IntegerType()),
         ("OnboardingDays", IntegerType()),
     ],
-    "dimpersona",
+    "persona_dimpersona",
 )
 
-# %% [3] dimcpumodel — relative CPU score per model
+# %% [3] persona_dimcpumodel — relative CPU score per model
 BASIS = "Relative multi-core capacity by core count; model names carry no vendor or generation"
 save(
     [
@@ -64,14 +64,14 @@ save(
         ("Windows 12-core", 88, BASIS),
     ],
     [("CPUModel", StringType()), ("CpuScore", IntegerType()), ("Basis", StringType())],
-    "dimcpumodel",
+    "persona_dimcpumodel",
 )
 
-# %% [4] dimslatarget — resolution target per priority, used to derive SLA breach
+# %% [4] persona_dimslatarget — resolution target per priority, used to derive SLA breach
 save(
     [("P1", 4), ("P2", 8), ("P3", 72), ("P4", 120)],
     [("Priority", StringType()), ("TargetHours", IntegerType())],
-    "dimslatarget",
+    "persona_dimslatarget",
 )
 
 # %% [5] Check — every user's persona and every device's CPU model must resolve
@@ -79,7 +79,7 @@ unmapped_personas = spark.sql(
     """
     SELECT u.Persona, COUNT(*) AS Users
     FROM dimuser u
-    LEFT ANTI JOIN dimpersona p ON p.SourcePersonaValue = u.Persona
+    LEFT ANTI JOIN persona_dimpersona p ON p.SourcePersonaValue = u.Persona
     GROUP BY u.Persona
     """
 )
@@ -87,12 +87,12 @@ unmapped_cpus = spark.sql(
     """
     SELECT d.CPUModel, COUNT(*) AS Devices
     FROM dimdevice d
-    LEFT ANTI JOIN dimcpumodel c ON c.CPUModel = d.CPUModel
+    LEFT ANTI JOIN persona_dimcpumodel c ON c.CPUModel = d.CPUModel
     GROUP BY d.CPUModel
     """
 )
 display(unmapped_personas)
 display(unmapped_cpus)
-assert unmapped_personas.count() == 0, "Some dimuser.Persona values have no dimpersona row — see the table above"
-assert unmapped_cpus.count() == 0, "Some dimdevice.CPUModel values have no dimcpumodel row — see the table above"
+assert unmapped_personas.count() == 0, "Some dimuser.Persona values have no persona_dimpersona row — see the table above"
+assert unmapped_cpus.count() == 0, "Some dimdevice.CPUModel values have no persona_dimcpumodel row — see the table above"
 print("OK: all 6 personas and all 5 CPU models resolve")

@@ -295,3 +295,149 @@ JOIN n ON n.Persona = per.Persona
 JOIN fleet ON fleet.Name = per.Name
 WHERE 100.0 * per.Devices / n.Total >= 30
 ORDER BY per.Persona, PctOfPersona DESC;
+
+
+-- ===========================================================================
+-- 11 · Follow-up after block 10 (18 Sep 2026). The software inventory is
+--      identical on every device and escalationReason has one value, so the
+--      app contract, mapping confidence and ticket categories need other
+--      sources. Each 11c-11g query returns ONLY rows where a persona differs
+--      from the fleet by 10+ points — an empty result means "no signal".
+-- ===========================================================================
+
+-- 11a · Ticket categories: the remediation rules (10f's second result, again).
+SELECT TOP 25 ruleId, COUNT(DISTINCT jobId) AS Jobs,
+       SUM(CASE WHEN eventType = 'ESCALATED' THEN 1 ELSE 0 END) AS Escalated,
+       SUM(CASE WHEN eventType = 'FAILED' THEN 1 ELSE 0 END)    AS Failed,
+       MAX(detail) AS SampleDetail
+FROM dbo.tbl_brz_epfix_eventlifecycle
+WHERE eventType <> 'HEARTBEAT'
+GROUP BY ruleId
+ORDER BY Jobs DESC;
+
+-- 11b · How many distinct software titles exist, and the requests source:
+--       apps users installed themselves ("available" intent), first seen when.
+SELECT COUNT(DISTINCT Name) AS DistinctSoftware FROM dbo.tbl_brz_systeminfo_software;
+
+SELECT TOP 20 r.ApplicationName,
+       COUNT(*)                                                    AS DeviceApps,
+       SUM(CASE WHEN r.FirstDate > m.MinDate THEN 1 ELSE 0 END)    AS FirstSeenInWindow,
+       SUM(r.AnyFailed)                                            AS Failed
+FROM (
+    SELECT DeviceId, ApplicationName, MIN([Date]) AS FirstDate,
+           MAX(CASE WHEN InstallState = 'failed' THEN 1 ELSE 0 END) AS AnyFailed
+    FROM dbo.tbl_brz_intune_app_deployment
+    WHERE AssignmentIntent = 'available'
+    GROUP BY DeviceId, ApplicationName
+) r
+CROSS JOIN (SELECT MIN([Date]) AS MinDate FROM dbo.tbl_brz_intune_app_deployment) m
+GROUP BY r.ApplicationName
+ORDER BY DeviceApps DESC;
+
+-- 11c · Persona signal: Intune REQUIRED app assignments.
+WITH dev AS (
+    SELECT d.DeviceId, u.Persona FROM dbo.dimdevice d JOIN dbo.dimuser u ON u.UserId = d.PrimaryUserId
+),
+x AS (SELECT DISTINCT DeviceId AS K, ApplicationName AS Item
+      FROM dbo.tbl_brz_intune_app_deployment WHERE AssignmentIntent = 'required'),
+per AS (SELECT dev.Persona, x.Item, COUNT(*) AS N FROM x JOIN dev ON dev.DeviceId = x.K GROUP BY dev.Persona, x.Item),
+fleet AS (SELECT x.Item, COUNT(*) AS N FROM x JOIN dev ON dev.DeviceId = x.K GROUP BY x.Item),
+tot AS (SELECT Persona, COUNT(*) AS N FROM dev GROUP BY Persona)
+SELECT TOP 40 per.Persona, per.Item,
+       CAST(100.0 * per.N / tot.N AS decimal(5, 1))                          AS PctOfPersona,
+       CAST(100.0 * fleet.N / (SELECT COUNT(*) FROM dev) AS decimal(5, 1))   AS PctOfFleet
+FROM per JOIN tot ON tot.Persona = per.Persona JOIN fleet ON fleet.Item = per.Item
+WHERE 100.0 * per.N / tot.N - 100.0 * fleet.N / (SELECT COUNT(*) FROM dev) >= 10
+ORDER BY 100.0 * per.N / tot.N - 100.0 * fleet.N / (SELECT COUNT(*) FROM dev) DESC;
+
+-- 11d · Persona signal: applications actually running (app performance telemetry).
+WITH dev AS (
+    SELECT b.EntraDeviceId, u.Persona FROM dbo.dimdevice d
+    JOIN dbo.dimuser u ON u.UserId = d.PrimaryUserId
+    JOIN dbo.intune_device_identity_bridge b ON b.DeviceId = d.DeviceId
+),
+x AS (SELECT DISTINCT EntraDeviceId AS K, AppName AS Item FROM dbo.tbl_brz_appperf_app),
+per AS (SELECT dev.Persona, x.Item, COUNT(*) AS N FROM x JOIN dev ON dev.EntraDeviceId = x.K GROUP BY dev.Persona, x.Item),
+fleet AS (SELECT x.Item, COUNT(*) AS N FROM x JOIN dev ON dev.EntraDeviceId = x.K GROUP BY x.Item),
+tot AS (SELECT Persona, COUNT(*) AS N FROM dev GROUP BY Persona)
+SELECT TOP 40 per.Persona, per.Item,
+       CAST(100.0 * per.N / tot.N AS decimal(5, 1))                          AS PctOfPersona,
+       CAST(100.0 * fleet.N / (SELECT COUNT(*) FROM dev) AS decimal(5, 1))   AS PctOfFleet
+FROM per JOIN tot ON tot.Persona = per.Persona JOIN fleet ON fleet.Item = per.Item
+WHERE 100.0 * per.N / tot.N - 100.0 * fleet.N / (SELECT COUNT(*) FROM dev) >= 10
+ORDER BY 100.0 * per.N / tot.N - 100.0 * fleet.N / (SELECT COUNT(*) FROM dev) DESC;
+
+-- 11e · Persona signal: cloud apps signed in to (Entra sign-in logs).
+WITH dev AS (SELECT UserId, Persona FROM dbo.dimuser),
+x AS (SELECT DISTINCT UserId AS K, AppDisplayName AS Item FROM dbo.intune_fact_entra_signin),
+per AS (SELECT dev.Persona, x.Item, COUNT(*) AS N FROM x JOIN dev ON dev.UserId = x.K GROUP BY dev.Persona, x.Item),
+fleet AS (SELECT x.Item, COUNT(*) AS N FROM x JOIN dev ON dev.UserId = x.K GROUP BY x.Item),
+tot AS (SELECT Persona, COUNT(*) AS N FROM dev GROUP BY Persona)
+SELECT TOP 40 per.Persona, per.Item,
+       CAST(100.0 * per.N / tot.N AS decimal(5, 1))                          AS PctOfPersona,
+       CAST(100.0 * fleet.N / (SELECT COUNT(*) FROM dev) AS decimal(5, 1))   AS PctOfFleet
+FROM per JOIN tot ON tot.Persona = per.Persona JOIN fleet ON fleet.Item = per.Item
+WHERE 100.0 * per.N / tot.N - 100.0 * fleet.N / (SELECT COUNT(*) FROM dev) >= 10
+ORDER BY 100.0 * per.N / tot.N - 100.0 * fleet.N / (SELECT COUNT(*) FROM dev) DESC;
+
+-- 11f · Persona signal: websites visited (browser page loads).
+WITH dev AS (
+    SELECT b.EntraDeviceId, u.Persona FROM dbo.dimdevice d
+    JOIN dbo.dimuser u ON u.UserId = d.PrimaryUserId
+    JOIN dbo.intune_device_identity_bridge b ON b.DeviceId = d.DeviceId
+),
+x AS (SELECT DISTINCT EntraDeviceId AS K, Hostname AS Item FROM dbo.tbl_brz_browser_pageload),
+per AS (SELECT dev.Persona, x.Item, COUNT(*) AS N FROM x JOIN dev ON dev.EntraDeviceId = x.K GROUP BY dev.Persona, x.Item),
+fleet AS (SELECT x.Item, COUNT(*) AS N FROM x JOIN dev ON dev.EntraDeviceId = x.K GROUP BY x.Item),
+tot AS (SELECT Persona, COUNT(*) AS N FROM dev GROUP BY Persona)
+SELECT TOP 40 per.Persona, per.Item,
+       CAST(100.0 * per.N / tot.N AS decimal(5, 1))                          AS PctOfPersona,
+       CAST(100.0 * fleet.N / (SELECT COUNT(*) FROM dev) AS decimal(5, 1))   AS PctOfFleet
+FROM per JOIN tot ON tot.Persona = per.Persona JOIN fleet ON fleet.Item = per.Item
+WHERE 100.0 * per.N / tot.N - 100.0 * fleet.N / (SELECT COUNT(*) FROM dev) >= 10
+ORDER BY 100.0 * per.N / tot.N - 100.0 * fleet.N / (SELECT COUNT(*) FROM dev) DESC;
+
+-- 11g · Persona signal: Entra group membership.
+WITH dev AS (SELECT UserId, Persona FROM dbo.dimuser),
+x AS (SELECT DISTINCT UserId AS K, GroupDisplayName AS Item
+      FROM dbo.tbl_brz_entra_group_membership WHERE IsCurrent = 1 AND UserId IS NOT NULL),
+per AS (SELECT dev.Persona, x.Item, COUNT(*) AS N FROM x JOIN dev ON dev.UserId = x.K GROUP BY dev.Persona, x.Item),
+fleet AS (SELECT x.Item, COUNT(*) AS N FROM x JOIN dev ON dev.UserId = x.K GROUP BY x.Item),
+tot AS (SELECT Persona, COUNT(*) AS N FROM dev GROUP BY Persona)
+SELECT TOP 40 per.Persona, per.Item,
+       CAST(100.0 * per.N / tot.N AS decimal(5, 1))                          AS PctOfPersona,
+       CAST(100.0 * fleet.N / (SELECT COUNT(*) FROM dev) AS decimal(5, 1))   AS PctOfFleet
+FROM per JOIN tot ON tot.Persona = per.Persona JOIN fleet ON fleet.Item = per.Item
+WHERE 100.0 * per.N / tot.N - 100.0 * fleet.N / (SELECT COUNT(*) FROM dev) >= 10
+ORDER BY 100.0 * per.N / tot.N - 100.0 * fleet.N / (SELECT COUNT(*) FROM dev) DESC;
+
+
+-- ===========================================================================
+-- 12 · Last discovery round (18 Sep 2026). Block 11 found no persona signal in
+--      software, Intune assignments, app usage, sign-ins or websites — only an
+--      Entra group per persona. These settle the app contract, mapping
+--      confidence and requests.
+-- ===========================================================================
+
+-- 12a · The 26 software titles on every device (the app contract is drawn from these).
+SELECT DISTINCT Name FROM dbo.tbl_brz_systeminfo_software ORDER BY Name;
+
+-- 12b · Do Entra persona groups agree with dimuser.Persona? Disagreement is the
+--       mapping-confidence signal; past memberships would hint at persona moves.
+WITH g AS (
+    SELECT UserId, REPLACE(GroupDisplayName, 'Persona - ', '') AS GroupPersona
+    FROM dbo.tbl_brz_entra_group_membership
+    WHERE IsCurrent = 1 AND GroupDisplayName LIKE 'Persona - %' AND UserId IS NOT NULL
+)
+SELECT
+    (SELECT COUNT(*) FROM dbo.dimuser)                                                   AS Users,
+    (SELECT COUNT(DISTINCT UserId) FROM g)                                               AS UsersInAPersonaGroup,
+    (SELECT COUNT(*) FROM (SELECT UserId FROM g GROUP BY UserId HAVING COUNT(*) > 1) x)  AS UsersInSeveralPersonaGroups,
+    (SELECT COUNT(*) FROM dbo.dimuser u JOIN g ON g.UserId = u.UserId
+      WHERE g.GroupPersona <> u.Persona)                                                 AS GroupDisagreesWithPersona,
+    (SELECT COUNT(*) FROM dbo.tbl_brz_entra_group_membership
+      WHERE IsCurrent = 0 AND GroupDisplayName LIKE 'Persona - %')                      AS PastPersonaMemberships;
+
+-- 12c · The same 26 names as one copyable line.
+SELECT STRING_AGG(Name, ', ') WITHIN GROUP (ORDER BY Name) AS AllSoftware
+FROM (SELECT DISTINCT Name FROM dbo.tbl_brz_systeminfo_software) t;
