@@ -311,13 +311,13 @@ Every field the portal reads, where it comes from, and what has to be built. Thi
 
 #### `CatalogResponse` — `/api/catalog`
 
-| Field              | Source                                           | Status |
-| ------------------ | ------------------------------------------------ | ------ |
-| `apps`             | `persona_dimpersonaapp`, grouped by persona      | ➕     |
-| `tasksAutomated`   | `persona_dimpersona.TasksAutomatedPerWeek`       | ➕     |
-| `onboardingDays`   | `persona_dimpersona.OnboardingDays`              | ➕     |
-| `ticketCategories` | `persona_dimticketcategory` where `Kind = 'inc'` | ➕     |
-| `catalogItems`     | `persona_dimticketcategory` where `Kind = 'req'` | ➕     |
+| Field              | Source                                                                                                                                    | Status |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| `apps`             | `persona_dimpersonaapp`, grouped by persona                                                                                               | ➕     |
+| `tasksAutomated`   | `persona_dimpersona.TasksAutomatedPerWeek`                                                                                                | ➕     |
+| `onboardingDays`   | `persona_dimpersona.OnboardingDays`                                                                                                       | ➕     |
+| `ticketCategories` | `persona_dimticketcategory` where `Kind = 'inc'`                                                                                          | ➕     |
+| `catalogItems`     | distinct `persona_factticket.Category` where `Kind = 'req'`, by volume — measured, since request categories are the apps people installed | ➕     |
 
 #### `Device` — `/api/fleet/devices`
 
@@ -439,21 +439,22 @@ Seed values. The model names carry only a core count — no vendor or generation
 
 #### Lakehouse — gold tables (step 2)
 
-**`persona_factdevicemetrics`** — one row per device per snapshot date. No stored scores (AD-6).
+**`persona_factdevicemetrics`** — one row per device per `AsOfDate`: every field the `Device` type needs, so views never read `dimdevice` or `dimuser` (AD-18). No stored scores (AD-6).
 
-| Column             | Type    | Notes                                                  |
-| ------------------ | ------- | ------------------------------------------------------ |
-| `SnapshotDate`     | date    |                                                        |
-| `DeviceId`         | string  | `dimdevice.DeviceId`                                   |
-| `EntraDeviceId`    | string  | Via the identity bridge (AD-7)                         |
-| `PersonaKey`       | string  | Via primary user → `persona_dimpersona`                |
-| `FreePct`          | double  |                                                        |
-| `BootSec`          | double  | Median, 30 days                                        |
-| `Crashes30d`       | int     |                                                        |
-| `BatteryHealthPct` | double  | Null when no battery — never zero                      |
-| `IsPatched`        | boolean |                                                        |
-| `LastSeenDays`     | int     |                                                        |
-| `MissingMeasures`  | string  | Comma list of measures with no telemetry, for coverage |
+| Column                                                                                                            | Type    | Notes                                                                                |
+| ----------------------------------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------ |
+| `SnapshotDate`                                                                                                    | date    | The data's `AsOfDate`; partition key                                                 |
+| `DeviceId` · `EntraDeviceId` · `PersonaKey`                                                                       | string  | Identity spine (AD-7)                                                                |
+| `DeviceName` · `UserId` · `UserDisplayName` · `Email` · `Department` · `JobTitle` · `Site` · `Model` · `CPUModel` | string  | Copied from `dimdevice` / `dimuser`; `Site` = `LocationRegion`                       |
+| `CpuScore` · `RamGB` · `StorageGB`                                                                                | int     | CPU score via `persona_dimcpumodel`                                                  |
+| `OsBuild`                                                                                                         | string  | `Win11 24H2` / `Win11 23H2` / `Win10 22H2` from the build number                     |
+| `FreePct`                                                                                                         | double  | Latest Intune free ÷ total storage                                                   |
+| `BootSec`                                                                                                         | double  | Median `MainPathBootTimeMs`, 30 days                                                 |
+| `Crashes30d`                                                                                                      | int     | BSOD + abnormal shutdowns, 30 days; null only if the device never reports crash data |
+| `BatteryHealthPct`                                                                                                | double  | Latest sample; null when no battery — never zero                                     |
+| `IsPatched`                                                                                                       | boolean | Latest `UpdateStatus` is `upToDate`                                                  |
+| `LastSeenDays`                                                                                                    | int     | Days from last Intune sync to `AsOfDate`                                             |
+| `MissingMeasures`                                                                                                 | string  | Comma list of measures with no telemetry, for coverage                               |
 
 **`persona_factdeviceapp`** — catalogue applications found on each device (AD-13).
 
@@ -466,23 +467,25 @@ Seed values. The model names carry only a core count — no vendor or generation
 
 **`persona_factticket`** — one row per ticket; incidents from the epfix lifecycle, requests from app deployment.
 
-| Column             | Type      | Notes                           |
-| ------------------ | --------- | ------------------------------- |
-| `TicketId`         | string    | epfix `jobId`                   |
-| `Kind`             | string    | `inc` / `req`                   |
-| `DeviceId`         | string    |                                 |
-| `UserId`           | string    |                                 |
-| `PersonaKey`       | string    |                                 |
-| `Department`       | string    |                                 |
-| `Category`         | string    | Via `persona_dimticketcategory` |
-| `ShortDescription` | string    |                                 |
-| `Priority`         | string    | Derived (AD-10)                 |
-| `State`            | string    | Latest lifecycle state          |
-| `IsOpen`           | boolean   |                                 |
-| `AssignmentGroup`  | string    |                                 |
-| `OpenedUtc`        | timestamp |                                 |
-| `ClosedUtc`        | timestamp | Null while open                 |
-| `IsSlaBreached`    | boolean   | Age vs `persona_dimslatarget`   |
+| Column             | Type      | Notes                             |
+| ------------------ | --------- | --------------------------------- |
+| `TicketId`         | string    | epfix `jobId`                     |
+| `Kind`             | string    | `inc` / `req`                     |
+| `DeviceId`         | string    |                                   |
+| `UserId`           | string    |                                   |
+| `PersonaKey`       | string    |                                   |
+| `Department`       | string    |                                   |
+| `Category`         | string    | Via `persona_dimticketcategory`   |
+| `ShortDescription` | string    |                                   |
+| `Priority`         | string    | Derived (AD-10)                   |
+| `State`            | string    | Latest lifecycle state            |
+| `IsOpen`           | boolean   |                                   |
+| `AssignmentGroup`  | string    |                                   |
+| `OpenedUtc`        | timestamp |                                   |
+| `ClosedUtc`        | timestamp | Null while open                   |
+| `IsSlaBreached`    | boolean   | Age vs `persona_dimslatarget`     |
+| `AgeDays`          | int       | Days open, to close or `AsOfDate` |
+| `WeekIndex`        | int       | Weeks before `AsOfDate`, 0–11     |
 
 **`persona_facttitlemapping`** — one row per job title × department. Borrowed shape (AD-17).
 
@@ -582,7 +585,7 @@ RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/dis
 | 2a   | `persona_dimpersona`, `persona_dimcpumodel`, `persona_dimslatarget` — values already known       | [notebooks/02a_reference_tables.py](notebooks/02a_reference_tables.py) · [check](sql/checks/02a_reference_tables.sql) | Done 18 Sep 2026 (re-run under `persona_` names) |
 | 2b   | Value discovery: time ranges, OS values, sites, patch states, ticket lifecycle, apps per persona | [sql/discovery.sql](sql/discovery.sql) block 10                                                                       | Done; follow-up block 11                         |
 | 2c   | `persona_dimpersonaapp`, `persona_dimticketcategory` — built from 2b's answers                   | [notebooks/02c_reference_tables.py](notebooks/02c_reference_tables.py) · [check](sql/checks/02c_reference_tables.sql) | Done 18 Sep 2026                                 |
-| 2d   | Gold notebook: input schema check, identity spine, the five `fact*` tables                       | —                                                                                                                     | Waiting on 2b, 2c                                |
+| 2d   | Gold notebook: input schema check, identity spine, the five `fact*` tables                       | [notebooks/02d_gold_tables.py](notebooks/02d_gold_tables.py) · [check](sql/checks/02d_gold_tables.sql)                | Done 18 Sep 2026                                 |
 | 2e   | `persona_vw_api_v1_*` views; calibrate boot, crash, free-space and battery baselines             | —                                                                                                                     | Waiting on 2d                                    |
 | 2f   | Daily schedule through a Data Factory pipeline, with run log and freshness timestamp             | —                                                                                                                     | Waiting on 2e                                    |
 
@@ -614,6 +617,8 @@ RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/dis
 Because every device already has every title, the Switch page will always report zero apps to install, and every device carries other personas' software. That is a finding, not a fault: software is deployed to everyone regardless of persona, the licence-waste mirror of the hardware result.
 
 **2c result (18 Sep 2026).** 25 contract rows (DEV 6 · KW 4 · CC 4 · FIELD 4 · EXEC 4 · RETAIL 3), every one matching a real software title; six incident categories totalling 11,499 incidents. The unprefixed tables from the first 2a run were dropped; only `persona_` tables remain.
+
+**2d result (18 Sep 2026).** First run succeeded: 68 input columns across 19 tables present; `AsOfDate` 2026-09-09, 30-day window from 11 Aug; all 5,000 devices resolve through the spine. `persona_factdevicemetrics` 5,000 rows with **no measure missing on any device**; `persona_factdeviceapp` 125,000; `persona_factticket` 11,499 — incidents only, because **no self-service install first appeared inside the window**, so the Service requests view will be empty (step 8 shows a clean empty state); `persona_facttitlemapping` 210 (21 titles × 10 departments); `persona_factpersonasnapshot` 5,000 for 18 Sep. Open incidents: Printing, Disk space and Windows Update are 100% open — likely chronic failures repeating on the same devices, checked in 2e before deciding whether to fold repeats into one ticket per device and rule.
 
 **Display names follow the organisation.** `persona_dimpersona` uses the names in `dimuser` — _Call Centre_ and _Field Services_ — rather than the wireframe's _Contact Centre_ and _Field Engineer_, so the portal speaks the estate's own language. Keys (`CC`, `FIELD`) are unchanged.
 
