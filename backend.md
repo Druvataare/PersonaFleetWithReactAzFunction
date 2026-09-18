@@ -17,7 +17,7 @@ Phase two: replace the mock API with real data from Microsoft Fabric, without ch
 | #   | Step                            | Status      | Date approved |
 | --- | ------------------------------- | ----------- | ------------- |
 | 1   | Data discovery                  | Done        | 18 Sep 2026   |
-| 2   | Gold layer build                | Not started | —             |
+| 2   | Gold layer build                | In progress | —             |
 | 3   | Functions app scaffold          | Not started | —             |
 | 4   | Fabric connection layer         | Not started | —             |
 | 5   | Configuration store             | Not started | —             |
@@ -59,8 +59,8 @@ Measured with [sql/discovery.sql](sql/discovery.sql) against the lakehouse SQL a
 | ----------------- | ----- | ---------- | ---------------------------------------- |
 | Knowledge Worker  | 1,542 | `KW`       | Hardware calibrated to the 8-core tier   |
 | Retail            | 1,115 | `RETAIL`   | **New** — proposed baseline, 6-core tier |
-| Call Centre       | 812   | `CC`       | Portal's "Contact Centre"; 8-core tier   |
-| Field Services    | 780   | `FIELD`    | Portal's "Field Engineer"; 8-core tier   |
+| Call Centre       | 812   | `CC`       | 8-core tier                              |
+| Field Services    | 780   | `FIELD`    | 8-core tier                              |
 | Engineering       | 546   | `DEV`      | 12-core tier (32 GB), as the wireframe   |
 | Executive         | 205   | `EXEC`     | Moved down to the 10-core tier           |
 
@@ -519,8 +519,8 @@ RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/dis
 | -------- | ----------------- | ---------------- | ------- | --- | ------- | --- | ------ | ------- | ------ | --------- | ----------- | ------------------------------ | -------- | ------------ | --------- |
 | `KW`     | Knowledge Worker  | Knowledge Worker | 8-core  | 16  | 512     | 60  | 45     | 3       | 15     | 70        | 9           | 20·20·25·15·20                 | 8        | 1            | `#2FA9C9` |
 | `RETAIL` | Retail            | Retail           | 6-core  | 8   | 256     | 45  | 40     | 2       | 15     | 80        | 12          | 15·25·25·15·20                 | 7        | 1            | `#9B5FE0` |
-| `CC`     | Call Centre       | Contact Centre   | 8-core  | 16  | 512     | 60  | 50     | 3       | 15     | 65        | 14          | 20·25·20·10·25                 | 11       | 1            | `#22A57F` |
-| `FIELD`  | Field Services    | Field Engineer   | 8-core  | 16  | 512     | 60  | 45     | 3       | 18     | 80        | 16          | 20·15·20·30·15                 | 6        | 4            | `#D98429` |
+| `CC`     | Call Centre       | Call Centre      | 8-core  | 16  | 512     | 60  | 50     | 3       | 15     | 65        | 14          | 20·25·20·10·25                 | 11       | 1            | `#22A57F` |
+| `FIELD`  | Field Services    | Field Services   | 8-core  | 16  | 512     | 60  | 45     | 3       | 18     | 80        | 16          | 20·15·20·30·15                 | 6        | 4            | `#D98429` |
 | `DEV`    | Engineering       | Engineering      | 12-core | 32  | 1024    | 88  | 40     | 2       | 20     | 75        | 12          | 30·30·15·10·15                 | 14       | 3            | `#6E7BF2` |
 | `EXEC`   | Executive         | Executive        | 10-core | 16  | 512     | 72  | 35     | 1       | 25     | 85        | 6           | 25·25·20·20·10                 | 5        | 2            | `#C4649B` |
 
@@ -532,8 +532,8 @@ RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/dis
 | ---------------- | ------- | ----------- | ---------- | ----------- | ----------- |
 | Knowledge Worker | 1,542   | 362 (23.5%) | 0          | 640 (41.5%) | 540 (35.0%) |
 | Retail           | 1,115   | 0           | 103 (9.2%) | 167 (15.0%) | 845 (75.8%) |
-| Contact Centre   | 812     | 185 (22.8%) | 0          | 337 (41.5%) | 290 (35.7%) |
-| Field Engineer   | 780     | 193 (24.7%) | 0          | 299 (38.3%) | 288 (36.9%) |
+| Call Centre      | 812     | 185 (22.8%) | 0          | 337 (41.5%) | 290 (35.7%) |
+| Field Services   | 780     | 193 (24.7%) | 0          | 299 (38.3%) | 288 (36.9%) |
 | Engineering      | 546     | 429 (78.6%) | 0          | 117 (21.4%) | 0           |
 | Executive        | 205     | 51 (24.9%)  | 89 (43.4%) | 30 (14.6%)  | 35 (17.1%)  |
 
@@ -541,7 +541,7 @@ RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/dis
 
 **The finding this data will show.** Hardware has been allocated with no regard to persona: every persona, Retail included, has about a fifth of its people on 32 GB 12-core workstations and a quarter on 8 GB machines. Three-quarters of Retail is over-provisioned — the spend the tour's second act talks about — while a fifth of Engineering is critically short. Baselines for boot time, crashes, free space and battery are calibrated in step 2, once `factdevicemetrics` exists.
 
-**Why these Retail values.** Shop-floor and point-of-sale work is light, so RAM (8 GB) and CPU (6-core) sit below Contact Centre. Tills must be up when the store opens, so boot is tighter (40 s) and crash tolerance lower (2). Handhelds run a full shift off the charger, so battery health is high (80 %). Card payments put tills in PCI DSS scope, so compliance carries more weight (25) and provisioning less (15). High seasonal turnover means one-day onboarding. The colour is Data Science's, which this estate does not have and which already passed the WCAG AA audit in all seven themes.
+**Why these Retail values.** Shop-floor and point-of-sale work is light, so RAM (8 GB) and CPU (6-core) sit below Call Centre. Tills must be up when the store opens, so boot is tighter (40 s) and crash tolerance lower (2). Handhelds run a full shift off the charger, so battery health is high (80 %). Card payments put tills in PCI DSS scope, so compliance carries more weight (25) and provisioning less (15). High seasonal turnover means one-day onboarding. The colour is Data Science's, which this estate does not have and which already passed the WCAG AA audit in all seven themes.
 
 ---
 
@@ -564,6 +564,21 @@ RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/dis
 - Views read only our gold tables — the notebook copies the `dimuser` and `dimdevice` columns it needs (AD-18).
 - `vw_api_v1_*` views over those tables — the only objects the BFF may read (AD-3).
 - Scheduled through a Data Factory pipeline, with a run log and freshness timestamp the API can expose.
+
+**Parts** — each is run in Fabric by you and checked before the next begins.
+
+| Part | Delivers                                                                                         | Files                                                                                                                 | Status            |
+| ---- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| 2a   | `dimpersona`, `dimcpumodel`, `dimslatarget` — values already known                               | [notebooks/02a_reference_tables.py](notebooks/02a_reference_tables.py) · [check](sql/checks/02a_reference_tables.sql) | Done 18 Sep 2026  |
+| 2b   | Value discovery: time ranges, OS values, sites, patch states, ticket lifecycle, apps per persona | [sql/discovery.sql](sql/discovery.sql) block 10                                                                       | Ready to run      |
+| 2c   | `dimpersonaapp`, `dimticketcategory` — built from 2b's answers                                   | —                                                                                                                     | Waiting on 2b     |
+| 2d   | Gold notebook: input schema check, identity spine, the five `fact*` tables                       | —                                                                                                                     | Waiting on 2b, 2c |
+| 2e   | `vw_api_v1_*` views; calibrate boot, crash, free-space and battery baselines                     | —                                                                                                                     | Waiting on 2d     |
+| 2f   | Daily schedule through a Data Factory pipeline, with run log and freshness timestamp             | —                                                                                                                     | Waiting on 2e     |
+
+**2a result (18 Sep 2026).** Run in `Persona_EPInsight_Lakehouse_Dev`. All 5,000 users resolve to one of the six personas and all 5,000 devices to a CPU score (4-core 452 · 6-core 725 · 8-core 2,015 · 10-core 776 · 12-core 1,032); four SLA targets present. Notebook check printed `OK`; all four SQL endpoint checks matched.
+
+**Display names follow the organisation.** `dimpersona` uses the names in `dimuser` — _Call Centre_ and _Field Services_ — rather than the wireframe's _Contact Centre_ and _Field Engineer_, so the portal speaks the estate's own language. Keys (`CC`, `FIELD`) are unchanged.
 
 **Test checkpoint**
 
@@ -721,6 +736,7 @@ RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/dis
 - A contract test suite that runs the mock handlers' assertions against the live API, so mock and Fabric cannot drift.
 - A daily drift check: each view's columns compared with the expected list, plus a trial query per view (AD-18).
 - Fix the guided tour's `pid: "DS"` reference ([steps.ts:85](apps/web/src/tour/steps.ts#L85)) to a persona this estate has.
+- Rewrite the tour captions that state the wireframe's facts — "seven personas, twelve thousand devices", "Contact Centre and Field Engineer carry most of it", "over their ceiling" — so every claim matches the live data, checked against the API before cutover.
 - `VITE_USE_MOCKS=false`; mocks stay in the repository for tests and local work.
 - Extend the CI workflow with `api_location`; capture the Function App, SQL database and role assignments as Bicep in `infra/`.
 - Re-run the 45-step smoke test and the layout and accessibility audit against the API-backed site.
