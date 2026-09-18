@@ -151,6 +151,8 @@ Each decision records what we chose, why, and what it costs us. Numbered so late
 
 **Why.** 881,570 boot events and 7.8 million software rows are not something to touch on a page load. Cold queries and concurrency spikes on the SQL endpoint are real.
 
+**Refined in 2e.** Telemetry is reduced in gold (881k boot events, 7.8M software rows never reach the API). The small gold tables — 210 title rows, 3,439 tickets — are then aggregated in the API by the same tested functions the mock API uses (`mappingSummary`, `mappingReview`, `ticketSummary`), moved into a shared package in step 3. Views return rows at the right grain; mock and live cannot disagree because they run the same code.
+
 **Consequence.** Data is as fresh as the gold job plus the cache window. The portal shows the data's own timestamp so that is visible rather than assumed.
 
 ### AD-9 · Entra ID end to end, no secrets
@@ -508,6 +510,23 @@ Seed values. The model names carry only a core count — no vendor or generation
 | `UserId`       | string |       |
 | `PersonaKey`   | string |       |
 
+#### Lakehouse — API views (step 2e)
+
+[sql/gold/persona_vw_api_v1.sql](sql/gold/persona_vw_api_v1.sql). Columns are named after the TypeScript fields they feed.
+
+| View                                | Feeds                                                | Grain                                      |
+| ----------------------------------- | ---------------------------------------------------- | ------------------------------------------ |
+| `persona_vw_api_v1_freshness`       | freshness label                                      | one row: `asOfDate`, `personaSnapshotDate` |
+| `persona_vw_api_v1_persona`         | `/api/personas`, `/api/catalog` tasks and onboarding | persona                                    |
+| `persona_vw_api_v1_persona_app`     | `/api/catalog` apps                                  | persona × app                              |
+| `persona_vw_api_v1_ticket_category` | `/api/catalog` ticket categories and catalogue items | category                                   |
+| `persona_vw_api_v1_device`          | `/api/fleet/devices`                                 | device, latest snapshot                    |
+| `persona_vw_api_v1_device_ticket`   | `Device.tickets`                                     | incident ticket opened in the last 30 days |
+| `persona_vw_api_v1_device_app`      | `Device.installed`                                   | device × app                               |
+| `persona_vw_api_v1_ticket`          | `/api/tickets/summary`                               | ticket, 12 weeks                           |
+| `persona_vw_api_v1_title_mapping`   | `/api/mapping/summary`, `/api/mapping/review`        | job title × department                     |
+| `persona_vw_api_v1_migration`       | `/api/change/migrations`                             | from × to persona                          |
+
 #### SQL database in Fabric — policy and writeback (steps 5 and 9)
 
 **`persona_policy`** — baseline and weights, one row per persona.
@@ -581,14 +600,14 @@ RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/dis
 
 **Parts** — each is run in Fabric by you and checked before the next begins.
 
-| Part | Delivers                                                                                         | Files                                                                                                                 | Status                                           |
-| ---- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| 2a   | `persona_dimpersona`, `persona_dimcpumodel`, `persona_dimslatarget` — values already known       | [notebooks/02a_reference_tables.py](notebooks/02a_reference_tables.py) · [check](sql/checks/02a_reference_tables.sql) | Done 18 Sep 2026 (re-run under `persona_` names) |
-| 2b   | Value discovery: time ranges, OS values, sites, patch states, ticket lifecycle, apps per persona | [sql/discovery.sql](sql/discovery.sql) block 10                                                                       | Done; follow-up block 11                         |
-| 2c   | `persona_dimpersonaapp`, `persona_dimticketcategory` — built from 2b's answers                   | [notebooks/02c_reference_tables.py](notebooks/02c_reference_tables.py) · [check](sql/checks/02c_reference_tables.sql) | Done 18 Sep 2026                                 |
-| 2d   | Gold notebook: input schema check, identity spine, the five `fact*` tables                       | [notebooks/02d_gold_tables.py](notebooks/02d_gold_tables.py) · [check](sql/checks/02d_gold_tables.sql)                | Done 18 Sep 2026                                 |
-| 2e   | `persona_vw_api_v1_*` views; calibrate boot, crash, free-space and battery baselines             | [sql/checks/02e_calibration.sql](sql/checks/02e_calibration.sql)                                                      | In progress                                      |
-| 2f   | Daily schedule through a Data Factory pipeline, with run log and freshness timestamp             | —                                                                                                                     | Waiting on 2e                                    |
+| Part | Delivers                                                                                         | Files                                                                                                                                                | Status                                           |
+| ---- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| 2a   | `persona_dimpersona`, `persona_dimcpumodel`, `persona_dimslatarget` — values already known       | [notebooks/02a_reference_tables.py](notebooks/02a_reference_tables.py) · [check](sql/checks/02a_reference_tables.sql)                                | Done 18 Sep 2026 (re-run under `persona_` names) |
+| 2b   | Value discovery: time ranges, OS values, sites, patch states, ticket lifecycle, apps per persona | [sql/discovery.sql](sql/discovery.sql) block 10                                                                                                      | Done; follow-up block 11                         |
+| 2c   | `persona_dimpersonaapp`, `persona_dimticketcategory` — built from 2b's answers                   | [notebooks/02c_reference_tables.py](notebooks/02c_reference_tables.py) · [check](sql/checks/02c_reference_tables.sql)                                | Done 18 Sep 2026                                 |
+| 2d   | Gold notebook: input schema check, identity spine, the five `fact*` tables                       | [notebooks/02d_gold_tables.py](notebooks/02d_gold_tables.py) · [check](sql/checks/02d_gold_tables.sql)                                               | Done 18 Sep 2026                                 |
+| 2e   | `persona_vw_api_v1_*` views; calibrate boot, crash, free-space and battery baselines             | [calibration](sql/checks/02e_calibration.sql) · [sql/gold/persona_vw_api_v1.sql](sql/gold/persona_vw_api_v1.sql) · [check](sql/checks/02e_views.sql) | Calibration done; views ready to run             |
+| 2f   | Daily schedule through a Data Factory pipeline, with run log and freshness timestamp             | —                                                                                                                                                    | Waiting on 2e                                    |
 
 **2a result (18 Sep 2026).** Run in `Persona_EPInsight_Lakehouse_Dev`. All 5,000 users resolve to one of the six personas and all 5,000 devices to a CPU score (4-core 452 · 6-core 725 · 8-core 2,015 · 10-core 776 · 12-core 1,032); four SLA targets present. Notebook check printed `OK`; all four SQL endpoint checks matched.
 
