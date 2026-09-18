@@ -175,7 +175,7 @@ Each decision records what we chose, why, and what it costs us. Numbered so late
 
 **Consequence.** The Tickets page measures automated-remediation load, not service-desk load. The page says so. If an ITSM source is ingested later, only the gold view changes.
 
-**Settled by discovery (18 Sep 2026).** Incidents are the 11,499 jobs ending ESCALATED (P2, 3,508) or FAILED (P3, 7,991). `escalationReason` has a single value, so the category comes from `ruleId` through `persona_dimticketcategory` — six rules: OneDrive sync 5,560 incidents, Browser 2,342, Network 1,958, Printing 567, Disk space 552, Windows Update 520. There are no resolution events, so a ticket closes when the same rule next succeeds on the same device and is open until then. These categories replace the wireframe's six, so the two places the front end hardcodes the wireframe names are made to read `ticketCategories` and `catalogItems` from `/api/catalog`, which the contract already provides (step 8).
+**Settled by discovery (18 Sep 2026).** Incidents are the 11,499 jobs ending ESCALATED (P2, 3,508) or FAILED (P3, 7,991). `escalationReason` has a single value, so the category comes from `ruleId` through `persona_dimticketcategory` — six rules: OneDrive sync 5,560 incidents, Browser 2,342, Network 1,958, Printing 567, Disk space 552, Windows Update 520. There are no resolution events, so a ticket closes when the same rule next succeeds on the same device and is open until then. **Repeat failures are one ticket:** every failure before the same next success is one episode, counted in `FailureCount` — 52 devices failed the same printing, disk and update fixes about ten times each, and counting each attempt would score every persona zero on support. P2 if any attempt was escalated to a person, otherwise P3. These categories replace the wireframe's six, so the two places the front end hardcodes the wireframe names are made to read `ticketCategories` and `catalogItems` from `/api/catalog`, which the contract already provides (step 8).
 
 ### AD-11 · The API contract is frozen
 
@@ -467,25 +467,26 @@ Seed values. The model names carry only a core count — no vendor or generation
 
 **`persona_factticket`** — one row per ticket; incidents from the epfix lifecycle, requests from app deployment.
 
-| Column             | Type      | Notes                             |
-| ------------------ | --------- | --------------------------------- |
-| `TicketId`         | string    | epfix `jobId`                     |
-| `Kind`             | string    | `inc` / `req`                     |
-| `DeviceId`         | string    |                                   |
-| `UserId`           | string    |                                   |
-| `PersonaKey`       | string    |                                   |
-| `Department`       | string    |                                   |
-| `Category`         | string    | Via `persona_dimticketcategory`   |
-| `ShortDescription` | string    |                                   |
-| `Priority`         | string    | Derived (AD-10)                   |
-| `State`            | string    | Latest lifecycle state            |
-| `IsOpen`           | boolean   |                                   |
-| `AssignmentGroup`  | string    |                                   |
-| `OpenedUtc`        | timestamp |                                   |
-| `ClosedUtc`        | timestamp | Null while open                   |
-| `IsSlaBreached`    | boolean   | Age vs `persona_dimslatarget`     |
-| `AgeDays`          | int       | Days open, to close or `AsOfDate` |
-| `WeekIndex`        | int       | Weeks before `AsOfDate`, 0–11     |
+| Column             | Type      | Notes                                                    |
+| ------------------ | --------- | -------------------------------------------------------- |
+| `TicketId`         | string    | epfix `jobId`                                            |
+| `Kind`             | string    | `inc` / `req`                                            |
+| `DeviceId`         | string    |                                                          |
+| `UserId`           | string    |                                                          |
+| `PersonaKey`       | string    |                                                          |
+| `Department`       | string    |                                                          |
+| `Category`         | string    | Via `persona_dimticketcategory`                          |
+| `ShortDescription` | string    |                                                          |
+| `Priority`         | string    | Derived (AD-10)                                          |
+| `State`            | string    | Latest lifecycle state                                   |
+| `IsOpen`           | boolean   |                                                          |
+| `AssignmentGroup`  | string    |                                                          |
+| `OpenedUtc`        | timestamp |                                                          |
+| `ClosedUtc`        | timestamp | Null while open                                          |
+| `IsSlaBreached`    | boolean   | Age vs `persona_dimslatarget`                            |
+| `AgeDays`          | int       | Days open, to close or `AsOfDate`                        |
+| `WeekIndex`        | int       | Weeks before `AsOfDate`, 0–11                            |
+| `FailureCount`     | int       | Failed attempts folded into this ticket (1 for requests) |
 
 **`persona_facttitlemapping`** — one row per job title × department. Borrowed shape (AD-17).
 
@@ -530,12 +531,12 @@ RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/dis
 
 | Key      | `dimuser.Persona` | Name             | Tier    | RAM | Storage | CPU | Boot s | Crashes | Free % | Battery % | Tickets/100 | Weights prov·perf·comp·exp·sup | Tasks/wk | Onboard days | Colour    |
 | -------- | ----------------- | ---------------- | ------- | --- | ------- | --- | ------ | ------- | ------ | --------- | ----------- | ------------------------------ | -------- | ------------ | --------- |
-| `KW`     | Knowledge Worker  | Knowledge Worker | 8-core  | 16  | 512     | 60  | 45     | 3       | 15     | 70        | 9           | 20·20·25·15·20                 | 8        | 1            | `#2FA9C9` |
-| `RETAIL` | Retail            | Retail           | 6-core  | 8   | 256     | 45  | 40     | 2       | 15     | 80        | 12          | 15·25·25·15·20                 | 7        | 1            | `#9B5FE0` |
-| `CC`     | Call Centre       | Call Centre      | 8-core  | 16  | 512     | 60  | 50     | 3       | 15     | 65        | 14          | 20·25·20·10·25                 | 11       | 1            | `#22A57F` |
-| `FIELD`  | Field Services    | Field Services   | 8-core  | 16  | 512     | 60  | 45     | 3       | 18     | 80        | 16          | 20·15·20·30·15                 | 6        | 4            | `#D98429` |
-| `DEV`    | Engineering       | Engineering      | 12-core | 32  | 1024    | 88  | 40     | 2       | 20     | 75        | 12          | 30·30·15·10·15                 | 14       | 3            | `#6E7BF2` |
-| `EXEC`   | Executive         | Executive        | 10-core | 16  | 512     | 72  | 35     | 1       | 25     | 85        | 6           | 25·25·20·20·10                 | 5        | 2            | `#C4649B` |
+| `KW`     | Knowledge Worker  | Knowledge Worker | 8-core  | 16  | 512     | 60  | 45     | 3       | 15     | 70        | 30          | 20·20·25·15·20                 | 8        | 1            | `#2FA9C9` |
+| `RETAIL` | Retail            | Retail           | 6-core  | 8   | 256     | 45  | 40     | 2       | 15     | 80        | 30          | 15·25·25·15·20                 | 7        | 1            | `#9B5FE0` |
+| `CC`     | Call Centre       | Call Centre      | 8-core  | 16  | 512     | 60  | 50     | 3       | 15     | 65        | 30          | 20·25·20·10·25                 | 11       | 1            | `#22A57F` |
+| `FIELD`  | Field Services    | Field Services   | 8-core  | 16  | 512     | 60  | 45     | 3       | 18     | 80        | 30          | 20·15·20·30·15                 | 6        | 4            | `#D98429` |
+| `DEV`    | Engineering       | Engineering      | 12-core | 32  | 1024    | 88  | 40     | 2       | 20     | 75        | 30          | 30·30·15·10·15                 | 14       | 3            | `#6E7BF2` |
+| `EXEC`   | Executive         | Executive        | 10-core | 16  | 512     | 72  | 35     | 1       | 25     | 85        | 30          | 25·25·20·20·10                 | 5        | 2            | `#C4649B` |
 
 **Why every baseline sits exactly on a tier.** The fleet has five fixed configurations, and RAM and SSD always move together. `fitClass` ([fit.ts:20](packages/scoring/src/fit.ts#L20)) calls a device _fit_ only when it is not above the baseline on any part — so a baseline between tiers, like the wireframe's CPU 55 for Knowledge Worker, leaves **zero** fit devices. It also means a device one tier down is below on RAM _and_ SSD at once, so it lands in _critical_, not _under_; _under_ appears only where two tiers share RAM and SSD and differ on CPU.
 
@@ -586,7 +587,7 @@ RAM, storage and CPU are **calibrated against the fleet** (18 Sep 2026, [sql/dis
 | 2b   | Value discovery: time ranges, OS values, sites, patch states, ticket lifecycle, apps per persona | [sql/discovery.sql](sql/discovery.sql) block 10                                                                       | Done; follow-up block 11                         |
 | 2c   | `persona_dimpersonaapp`, `persona_dimticketcategory` — built from 2b's answers                   | [notebooks/02c_reference_tables.py](notebooks/02c_reference_tables.py) · [check](sql/checks/02c_reference_tables.sql) | Done 18 Sep 2026                                 |
 | 2d   | Gold notebook: input schema check, identity spine, the five `fact*` tables                       | [notebooks/02d_gold_tables.py](notebooks/02d_gold_tables.py) · [check](sql/checks/02d_gold_tables.sql)                | Done 18 Sep 2026                                 |
-| 2e   | `persona_vw_api_v1_*` views; calibrate boot, crash, free-space and battery baselines             | —                                                                                                                     | Waiting on 2d                                    |
+| 2e   | `persona_vw_api_v1_*` views; calibrate boot, crash, free-space and battery baselines             | [sql/checks/02e_calibration.sql](sql/checks/02e_calibration.sql)                                                      | In progress                                      |
 | 2f   | Daily schedule through a Data Factory pipeline, with run log and freshness timestamp             | —                                                                                                                     | Waiting on 2e                                    |
 
 **2a result (18 Sep 2026).** Run in `Persona_EPInsight_Lakehouse_Dev`. All 5,000 users resolve to one of the six personas and all 5,000 devices to a CPU score (4-core 452 · 6-core 725 · 8-core 2,015 · 10-core 776 · 12-core 1,032); four SLA targets present. Notebook check printed `OK`; all four SQL endpoint checks matched.
@@ -618,7 +619,36 @@ Because every device already has every title, the Switch page will always report
 
 **2c result (18 Sep 2026).** 25 contract rows (DEV 6 · KW 4 · CC 4 · FIELD 4 · EXEC 4 · RETAIL 3), every one matching a real software title; six incident categories totalling 11,499 incidents. The unprefixed tables from the first 2a run were dropped; only `persona_` tables remain.
 
-**2d result (18 Sep 2026).** First run succeeded: 68 input columns across 19 tables present; `AsOfDate` 2026-09-09, 30-day window from 11 Aug; all 5,000 devices resolve through the spine. `persona_factdevicemetrics` 5,000 rows with **no measure missing on any device**; `persona_factdeviceapp` 125,000; `persona_factticket` 11,499 — incidents only, because **no self-service install first appeared inside the window**, so the Service requests view will be empty (step 8 shows a clean empty state); `persona_facttitlemapping` 210 (21 titles × 10 departments); `persona_factpersonasnapshot` 5,000 for 18 Sep. Open incidents: Printing, Disk space and Windows Update are 100% open — likely chronic failures repeating on the same devices, checked in 2e before deciding whether to fold repeats into one ticket per device and rule.
+**2d result (18 Sep 2026).** First run succeeded: 68 input columns across 19 tables present; `AsOfDate` 2026-09-09, 30-day window from 11 Aug; all 5,000 devices resolve through the spine. `persona_factdevicemetrics` 5,000 rows with **no measure missing on any device**; `persona_factdeviceapp` 125,000; `persona_factticket` 11,499 — incidents only, because **no self-service install first appeared inside the window**, so the Service requests view will be empty (step 8 shows a clean empty state); `persona_facttitlemapping` 210 (21 titles × 10 departments); `persona_factpersonasnapshot` 5,000 for 18 Sep. Open incidents: Printing, Disk space and Windows Update are 100% open — likely chronic failures repeating on the same devices, confirmed in 2e (52 devices × about ten attempts each) and folded into one ticket per device, rule and episode: 3,439 tickets, 1,122 open.
+
+**2e calibration, part 1 (18 Sep 2026)** — [sql/checks/02e_calibration.sql](sql/checks/02e_calibration.sql).
+
+| Persona | Boot p50 / p75 (s) | Target | Devices with a crash | Avg crashes / 30d | Free space p25 | Target |
+| ------- | ------------------ | ------ | -------------------- | ----------------- | -------------- | ------ |
+| CC      | 23.4 / 24.9        | 50     | 3.2%                 | 0.43              | 33.4%          | 15%    |
+| DEV     | 23.3 / 24.8        | 40     | 1.5%                 | 0.04              | 34.2%          | 20%    |
+| EXEC    | 23.7 / 25.3        | 35     | 3.4%                 | 0.49              | 33.9%          | 25%    |
+| FIELD   | 23.5 / 25.1        | 45     | 3.2%                 | 0.78              | 32.4%          | 18%    |
+| KW      | 23.4 / 25.0        | 45     | 2.5%                 | 0.78              | 33.3%          | 15%    |
+| RETAIL  | 24.1 / 26.8        | 40     | 7.1%                 | 2.08              | 19.1%          | 15%    |
+
+Boot, crash and free-space targets are **kept as adopted**: a baseline states what the work needs, so the portal reports honestly that boot time is healthy fleet-wide, that most devices never crash while a handful crash up to 194 times in 30 days, and that Retail is the tightest persona on both crashes and free space. Battery, patching and the ticket ceilings follow once repeat failures are folded into episodes.
+
+**2e calibration, part 2 (18 Sep 2026)** — after folding repeats: 3,439 incident tickets from 11,499 failed jobs, 1,122 open (one per chronically failing device in Printing, Disk space and Windows Update).
+
+| Persona | Battery health p25 / p50 | Target | Patched | Incidents / 100 devices / 30 days | Ceiling |
+| ------- | ------------------------ | ------ | ------- | --------------------------------- | ------- |
+| CC      | 64.7 / 75.7              | 65     | 99.4%   | 26.7                              | 30      |
+| DEV     | 67.2 / 78.3              | 75     | 98.9%   | 22.7                              | 30      |
+| EXEC    | 64.7 / 76.9              | 85     | 99.5%   | 25.9                              | 30      |
+| FIELD   | 64.7 / 75.7              | 80     | 99.0%   | 32.4                              | 30      |
+| KW      | 66.0 / 76.9              | 70     | 99.2%   | 28.5                              | 30      |
+| RETAIL  | 64.7 / 76.4              | 80     | 98.2%   | 73.0                              | 30      |
+
+- **Battery targets kept.** Every device has a battery and median health is about 76%; 80% is the industry's usual replacement line, so the portal shows honestly that about half the fleet's batteries are due.
+- **Patching** is about 99% everywhere; compliance differences come mostly from the 1,015 Windows 10 devices.
+- **Ticket ceilings changed to 30 for every persona.** The wireframe's 6–16 assumed human-raised service-desk tickets; these are failed or escalated automated fixes, a different measure with its own natural rate, and the old ceilings would have scored every persona zero on support. 30 is the fleet's own typical rate (median about 27) rounded up: a persona is over its ceiling when its fixes fail or escalate more often than the fleet norm. Five personas sit at or near it; Retail runs at 2.5× — the same persona with the most crashes and the least free disk.
+- **Definition.** `ticketsPer100` counts incident tickets opened in the last 30 days per 100 devices, and each device's `tickets[]` holds those same tickets.
 
 **Display names follow the organisation.** `persona_dimpersona` uses the names in `dimuser` — _Call Centre_ and _Field Services_ — rather than the wireframe's _Contact Centre_ and _Field Engineer_, so the portal speaks the estate's own language. Keys (`CC`, `FIELD`) are unchanged.
 

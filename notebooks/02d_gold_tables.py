@@ -216,10 +216,14 @@ save_whole(
 )
 
 # %% [5] persona_factticket — incidents and requests (AD-10)
-# Incidents: remediation jobs ending ESCALATED (P2) or FAILED (P3). No resolution
-# events exist, so an incident closes when the same rule next succeeds on the
-# same device. Requests: an 'available' app first appearing on a device after
-# the data starts — a self-service install; open only if its latest state failed.
+# Incidents: remediation jobs ending ESCALATED or FAILED. No resolution events
+# exist, so a failure closes when the same rule next succeeds on the same device.
+# Repeat failures are one ticket: every failure before the same next success is
+# one episode — grouped by device, rule and that close time — with the attempts
+# counted in FailureCount (2e: 52 devices failed the same fix ~10 times each).
+# P2 if any attempt was escalated to a person, otherwise P3.
+# Requests: an 'available' app first appearing on a device after the data
+# starts — a self-service install; open only if its latest state failed.
 # Final state = the latest event; on a timestamp tie the terminal event wins over RUNNING/RECEIVED.
 spark.sql(
     """
@@ -247,22 +251,32 @@ incidents = spark.sql(
         JOIN jobs ok ON ok.EntraDeviceId = i.EntraDeviceId AND ok.ruleId = i.ruleId
                     AND ok.FinalState = 'SUCCESS' AND ok.OpenedUtc > i.FinalUtc
         GROUP BY i.jobId
+    ),
+    episodes AS (   -- NULL ClosedUtc groups together: the one still-open episode per device and rule
+        SELECT i.EntraDeviceId, i.ruleId, cl.ClosedUtc,
+               MIN_BY(i.jobId, i.OpenedUtc)                            AS TicketId,
+               MIN(i.OpenedUtc)                                        AS OpenedUtc,
+               COUNT(*)                                                AS FailureCount,
+               MAX(CASE WHEN i.FinalState = 'ESCALATED' THEN 1 ELSE 0 END) = 1 AS Escalated,
+               MAX_BY(i.Agent, i.FinalUtc)                             AS Agent
+        FROM inc i
+        LEFT JOIN closed cl ON cl.jobId = i.jobId
+        GROUP BY i.EntraDeviceId, i.ruleId, cl.ClosedUtc
     )
-    SELECT i.jobId AS TicketId, 'inc' AS Kind, s.DeviceId, s.UserId, s.PersonaKey, s.Department,
+    SELECT e.TicketId, 'inc' AS Kind, s.DeviceId, s.UserId, s.PersonaKey, s.Department,
            c.CategoryName AS Category,
-           CONCAT(c.CategoryName, ' fix ',
-                  CASE i.FinalState WHEN 'ESCALATED' THEN 'escalated to support' ELSE 'failed' END) AS ShortDescription,
-           CASE i.FinalState WHEN 'ESCALATED' THEN 'P2' ELSE 'P3' END AS Priority,
-           CASE WHEN cl.ClosedUtc IS NOT NULL THEN 'Resolved'
-                WHEN i.FinalState = 'ESCALATED' THEN 'Escalated' ELSE 'Failed' END AS State,
-           cl.ClosedUtc IS NULL AS IsOpen,
-           COALESCE(i.Agent, 'Endpoint remediation') AS AssignmentGroup,
-           i.OpenedUtc, cl.ClosedUtc
-    FROM inc i
-    JOIN spine s                      ON s.EntraDeviceId = i.EntraDeviceId
-    JOIN persona_dimticketcategory c  ON c.Kind = 'inc' AND c.MatchValue = i.ruleId
-    LEFT JOIN closed cl               ON cl.jobId = i.jobId
-    WHERE CAST(i.OpenedUtc AS DATE) BETWEEN {WINDOW_84} AND DATE '{AS_OF}'
+           CONCAT(c.CategoryName, ' fix ', CASE WHEN e.Escalated THEN 'escalated to support' ELSE 'failed' END,
+                  CASE WHEN e.FailureCount > 1 THEN CONCAT(' (', e.FailureCount, ' attempts)') ELSE '' END) AS ShortDescription,
+           CASE WHEN e.Escalated THEN 'P2' ELSE 'P3' END AS Priority,
+           CASE WHEN e.ClosedUtc IS NOT NULL THEN 'Resolved'
+                WHEN e.Escalated THEN 'Escalated' ELSE 'Failed' END AS State,
+           e.ClosedUtc IS NULL AS IsOpen,
+           COALESCE(e.Agent, 'Endpoint remediation') AS AssignmentGroup,
+           e.OpenedUtc, e.ClosedUtc, CAST(e.FailureCount AS INT) AS FailureCount
+    FROM episodes e
+    JOIN spine s                      ON s.EntraDeviceId = e.EntraDeviceId
+    JOIN persona_dimticketcategory c  ON c.Kind = 'inc' AND c.MatchValue = e.ruleId
+    WHERE CAST(e.OpenedUtc AS DATE) BETWEEN {WINDOW_84} AND DATE '{AS_OF}'
     """
 )
 requests = spark.sql(
@@ -283,7 +297,8 @@ requests = spark.sql(
            f.LastState = 'failed' AS IsOpen,
            'Intune' AS AssignmentGroup,
            CAST(f.FirstDate AS TIMESTAMP) AS OpenedUtc,
-           CASE WHEN f.LastState = 'failed' THEN NULL ELSE CAST(f.FirstDate AS TIMESTAMP) END AS ClosedUtc
+           CASE WHEN f.LastState = 'failed' THEN NULL ELSE CAST(f.FirstDate AS TIMESTAMP) END AS ClosedUtc,
+           1 AS FailureCount
     FROM first_seen f
     CROSS JOIN start
     JOIN spine s ON s.DeviceId = f.DeviceId
@@ -386,8 +401,8 @@ display(spark.sql(
 ))
 display(spark.sql(
     """
-    SELECT Kind, State, Priority, COUNT(*) AS Tickets, SUM(CAST(IsOpen AS INT)) AS Open,
-           SUM(CAST(IsSlaBreached AS INT)) AS SlaBreached
+    SELECT Kind, State, Priority, COUNT(*) AS Tickets, SUM(FailureCount) AS Attempts,
+           SUM(CAST(IsOpen AS INT)) AS Open, SUM(CAST(IsSlaBreached AS INT)) AS SlaBreached
     FROM persona_factticket GROUP BY Kind, State, Priority ORDER BY Kind, Priority, State
     """
 ))
@@ -405,15 +420,19 @@ display(spark.sql(
 ))
 
 assert m.count() == all_devices, "persona_factdevicemetrics is missing devices"
-inc_total = spark.sql(
-    f"""SELECT COUNT(*) FROM jobs WHERE FinalState IN ('ESCALATED','FAILED')
-        AND CAST(OpenedUtc AS DATE) BETWEEN {WINDOW_84} AND DATE '{AS_OF}'"""
-).first()[0]
-inc_written = spark.sql("SELECT COUNT(*) FROM persona_factticket WHERE Kind = 'inc'").first()[0]
-assert inc_written == inc_total, f"{inc_total} incidents in the window but {inc_written} written — a job lost its device or category"
+failed_jobs, first_day = spark.sql(
+    "SELECT COUNT(*), CAST(MIN(OpenedUtc) AS DATE) FROM jobs WHERE FinalState IN ('ESCALATED','FAILED')"
+).first()
+tickets_inc, attempts = spark.sql(
+    "SELECT COUNT(*), SUM(FailureCount) FROM persona_factticket WHERE Kind = 'inc'"
+).first()
+# Every failed job belongs to exactly one ticket while the data fits the 12-week window.
+if (as_of - first_day).days <= 83:
+    assert attempts == failed_jobs, f"{failed_jobs} failed jobs but tickets account for {attempts} — a job lost its device or category"
 users_mapped = spark.sql("SELECT SUM(UserCount) FROM persona_facttitlemapping").first()[0]
 assert users_mapped == spark.table("dimuser").count(), "persona_facttitlemapping does not cover every user"
-print(f"OK: {m.count()} devices, {inc_written} incidents, {users_mapped} users mapped, AsOfDate {AS_OF}")
+print(f"OK: {m.count()} devices, {attempts} failed jobs folded into {tickets_inc} incident tickets, "
+      f"{users_mapped} users mapped, AsOfDate {AS_OF}")
 
 # %% [9] Calibration figures for 2e — what each persona's devices actually measure
 display(spark.sql(

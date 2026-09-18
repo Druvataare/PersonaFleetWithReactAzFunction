@@ -20,13 +20,16 @@ SELECT TOP 5 DeviceName, UserDisplayName, Site, Model, CpuScore, RamGB, StorageG
 FROM dbo.persona_factdevicemetrics
 ORDER BY DeviceName;
 
--- 3 · Incidents by category. Expect 11,499 in total:
+-- 3 · Incident tickets by category. Attempts total 11,499 failed jobs:
 --     OneDrive sync 5,560 · Browser 2,342 · Network 1,958 · Printing 567 · Disk space 552 · Windows Update 520
-SELECT Category, COUNT(*) AS Incidents, SUM(CAST(IsOpen AS int)) AS StillOpen
+--     Repeat failures fold into one ticket per device, rule and episode, so
+--     Tickets is lower; StillOpen should now be about one per affected device
+--     (Printing, Disk space, Windows Update: 52 each).
+SELECT Category, COUNT(*) AS Tickets, SUM(FailureCount) AS Attempts, SUM(CAST(IsOpen AS int)) AS StillOpen
 FROM dbo.persona_factticket
 WHERE Kind = 'inc'
 GROUP BY Category
-ORDER BY Incidents DESC;
+ORDER BY Attempts DESC;
 
 -- 4 · Headcount per persona from the snapshot. Expect KW 1542 · RETAIL 1115 ·
 --     CC 812 · FIELD 780 · DEV 546 · EXEC 205
