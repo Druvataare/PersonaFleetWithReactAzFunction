@@ -1,6 +1,6 @@
 /* In-memory mock database. Created lazily from the seeded generator and
    mutated by write endpoints (persona changes). Resets on page reload. */
-import type { PersonaChange } from "../api/types.ts";
+import type { PersonaChange } from "@pfc/contract";
 import { generateFleetData, type FleetData } from "./data/generate.ts";
 
 export interface MockDb extends FleetData {

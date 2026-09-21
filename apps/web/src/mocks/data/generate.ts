@@ -12,7 +12,7 @@ import type {
   Priority,
   Weights,
 } from "@pfc/scoring";
-import type { FleetTicket, TicketKind, TitleRow } from "../../api/types.ts";
+import type { FleetTicket, TicketKind, TitleRow } from "@pfc/contract";
 import {
   APPS,
   CATALOG,

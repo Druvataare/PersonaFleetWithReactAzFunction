@@ -14,7 +14,7 @@ import type {
   PersonasResponse,
   ProvisioningRequestResponse,
   TicketSummary,
-} from "../api/types.ts";
+} from "@pfc/contract";
 
 describe("read endpoints", () => {
   it("GET /api/personas", async () => {

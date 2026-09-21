@@ -3,7 +3,7 @@
 import type { ConfidenceBand, PersonaDef, PersonaId } from "@pfc/scoring";
 import { useDeferredValue } from "react";
 import { useMappingReview, useMappingSummary } from "../../api/queries.ts";
-import type { KeyCount } from "../../api/types.ts";
+import type { KeyCount } from "@pfc/contract";
 import { Donut } from "../../charts/index.ts";
 import { AnimNum } from "../../components/AnimNum.tsx";
 import { Avatar } from "../../components/Avatar.tsx";

@@ -1,5 +1,5 @@
 import { gradeTicketLoad, type PersonaModel } from "@pfc/scoring";
-import type { PersonaTicketCount } from "../api/types.ts";
+import type { PersonaTicketCount } from "@pfc/contract";
 
 export interface PersonaTicketRow {
   p: PersonaModel;

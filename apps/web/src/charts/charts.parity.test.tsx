@@ -4,10 +4,10 @@
 import { buildModel, fitByPersona, FIT_KINDS, healthTone, type PersonaModel } from "@pfc/scoring";
 import { render } from "@testing-library/react";
 import { beforeAll, describe, expect, it } from "vitest";
-import { ageByPriority, tally } from "../lib/aggregate.ts";
+import { ageByPriority, tally } from "@pfc/contract";
 import { TICKET_CATS } from "../lib/categories.ts";
 import { personaTrend } from "../lib/trend.ts";
-import { ticketSummary } from "../mocks/aggregate.ts";
+import { ticketSummary } from "@pfc/contract";
 import { generateFleetData } from "../mocks/data/generate.ts";
 import { loadWireframe } from "../mocks/data/wireframe.ts";
 import { THEMES } from "../theme/themes.ts";

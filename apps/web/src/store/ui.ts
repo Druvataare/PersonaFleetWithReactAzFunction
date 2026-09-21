@@ -3,7 +3,7 @@
 import type { Baseline, ConfidenceBand, PersonaId } from "@pfc/scoring";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { TicketKind } from "../api/types.ts";
+import type { TicketKind } from "@pfc/contract";
 import { isThemeKey, type ThemeKey } from "../theme/themes.ts";
 
 export type PersonaFilter = "all" | "risk";

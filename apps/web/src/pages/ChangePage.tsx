@@ -6,7 +6,7 @@ import { BarList, MigrationFlow } from "../charts/index.ts";
 import { Avatar } from "../components/Avatar.tsx";
 import { Icon } from "../components/Icon.tsx";
 import { ChartType, ErrorMessage, Kpi, Loading, PageHead, Panel, Sect } from "../components/ui.tsx";
-import { tally } from "../lib/aggregate.ts";
+import { tally } from "@pfc/contract";
 import { useFleetModel } from "../model/useFleetModel.ts";
 import { usePalette } from "../theme/usePalette.ts";
 

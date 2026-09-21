@@ -1,0 +1,21 @@
+{
+  "name": "@pfc/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Persona Fleet Command API: Azure Functions serving /api/* from Microsoft Fabric.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "npm run build && func start",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.8.0",
+    "@pfc/contract": "*",
+    "@pfc/scoring": "*"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.0"
+  }
+}

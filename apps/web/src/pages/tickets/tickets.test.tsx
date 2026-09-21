@@ -2,7 +2,7 @@
    requests, persona counts and ticket ceilings. */
 import { act, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { tally } from "../../lib/aggregate.ts";
+import { tally } from "@pfc/contract";
 import { loadWireframe } from "../../mocks/data/wireframe.ts";
 import { useUi } from "../../store/ui.ts";
 import { renderApp } from "../../test/renderApp.tsx";

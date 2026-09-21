@@ -31,6 +31,11 @@ export default tseslint.config(
     languageOptions: { globals: globals.node },
   },
   {
+    /* The Functions app runs in Node. */
+    files: ["apps/api/**/*.{ts,mjs}"],
+    languageOptions: { globals: globals.node },
+  },
+  {
     /* e2e scripts run in Node and pass functions to the browser page. */
     files: ["e2e/**/*.mjs"],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },

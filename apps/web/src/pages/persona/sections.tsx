@@ -28,7 +28,7 @@ import { AnimNum } from "../../components/AnimNum.tsx";
 import { Avatar } from "../../components/Avatar.tsx";
 import { Icon } from "../../components/Icon.tsx";
 import { ChartType, Panel, Sect } from "../../components/ui.tsx";
-import { ageByPriority, tally } from "../../lib/aggregate.ts";
+import { ageByPriority, tally } from "@pfc/contract";
 import { TICKET_CATS } from "../../lib/categories.ts";
 import { gb, toneColor } from "../../lib/format.ts";
 import { personaTrend } from "../../lib/trend.ts";

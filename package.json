@@ -11,7 +11,9 @@
   },
   "scripts": {
     "dev": "npm run dev -w @pfc/web",
-    "build": "npm run build -w @pfc/web",
+    "dev:api": "npm run start -w @pfc/api",
+    "dev:full": "swa start http://localhost:5173 --run \"npm run dev -w @pfc/web\" --api-location apps/api",
+    "build": "npm run build -w @pfc/web && npm run build -w @pfc/api",
     "preview": "npm run preview -w @pfc/web",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint .",

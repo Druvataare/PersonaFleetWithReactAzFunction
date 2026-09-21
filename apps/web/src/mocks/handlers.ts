@@ -18,8 +18,8 @@ import type {
   ProvisioningRequestResponse,
   TicketKind,
   TicketSummary,
-} from "../api/types.ts";
-import { mappingReview, mappingSummary, ticketSummary } from "./aggregate.ts";
+} from "@pfc/contract";
+import { mappingReview, mappingSummary, ticketSummary } from "@pfc/contract";
 import { CATALOG, TICKET_CATS } from "./data/catalog.ts";
 import { db } from "./db.ts";
 

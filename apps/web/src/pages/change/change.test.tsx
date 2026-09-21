@@ -2,7 +2,7 @@
 import { switchMetrics } from "@pfc/scoring";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { tally } from "../../lib/aggregate.ts";
+import { tally } from "@pfc/contract";
 import { loadWireframe } from "../../mocks/data/wireframe.ts";
 import { renderApp } from "../../test/renderApp.tsx";
 

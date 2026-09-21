@@ -8,3 +8,7 @@ coverage
 .DS_Store
 Thumbs.db
 e2e/audit-output
+
+# Azure Functions
+apps/api/dist/
+apps/api/local.settings.json

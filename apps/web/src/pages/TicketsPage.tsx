@@ -2,7 +2,7 @@
    persona's ticket ceiling. Follows the wireframe's screenTickets. */
 import { ticketBaselinePerUser, ticketStatus } from "@pfc/scoring";
 import { useTicketSummary } from "../api/queries.ts";
-import type { TicketKind } from "../api/types.ts";
+import type { TicketKind } from "@pfc/contract";
 import { BarList, Donut, StackedAge, ticketCategoryColor, WeekBars } from "../charts/index.ts";
 import { LegendList } from "../components/LegendList.tsx";
 import { ChartType, Chip, ErrorMessage, Kpi, Loading, PageHead, Panel, Sect } from "../components/ui.tsx";

@@ -1,0 +1,16 @@
+{
+  "name": "@pfc/contract",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Persona Fleet Command API contract and its aggregations, shared by the web app and the API.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@pfc/scoring": "*"
+  }
+}

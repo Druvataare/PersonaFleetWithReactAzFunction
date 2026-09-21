@@ -1,7 +1,7 @@
 /* HTML-based charts: bullet chart (actual vs target) and ranked bar list. */
 import { scaleLinear } from "d3-scale";
 import { Icon, type IconName } from "../components/Icon.tsx";
-import type { KeyCount } from "../api/types.ts";
+import type { KeyCount } from "@pfc/contract";
 import { MotionFrame } from "../motion/clock.tsx";
 import { useElapsed } from "../motion/hooks.ts";
 import { ease, progress } from "../motion/timing.ts";

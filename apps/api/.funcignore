@@ -1,0 +1,6 @@
+*.md
+src/**/*.test.ts
+build.mjs
+tsconfig.json
+vitest.config.ts
+local.settings.json

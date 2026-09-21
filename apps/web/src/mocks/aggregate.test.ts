@@ -1,15 +1,16 @@
 // @vitest-environment node
 import type { PersonaDef } from "@pfc/scoring";
 import { describe, expect, it } from "vitest";
-import type { FleetTicket, TitleRow } from "../api/types.ts";
 import {
   ageByPriority,
+  type FleetTicket,
   mappingReview,
   mappingSummary,
   REVIEW_LIMIT,
   tally,
   ticketSummary,
-} from "./aggregate.ts";
+  type TitleRow,
+} from "@pfc/contract";
 import { generateFleetData } from "./data/generate.ts";
 
 const personas: PersonaDef[] = [

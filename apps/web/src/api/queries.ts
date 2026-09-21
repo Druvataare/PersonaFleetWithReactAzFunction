@@ -17,7 +17,7 @@ import type {
   ProvisioningRequestResponse,
   TicketKind,
   TicketSummary,
-} from "./types.ts";
+} from "@pfc/contract";
 
 const qs = (params: Record<string, string | null | undefined>) => {
   const p = new URLSearchParams();

@@ -23,6 +23,8 @@ The top bar also has seven themes, MOTION, CHART NAMES and a self-driving **TOUR
 | Path                           | Contents                                                                                                                      |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
 | `apps/web`                     | React 19 + TypeScript + Vite app: pages, charts (D3 maths, React SVG), mock API (MSW)                                         |
+| `apps/api`                     | Azure Functions API serving `/api/*` from Microsoft Fabric (in build; see `backend.md`)                                       |
+| `packages/contract`            | The `/api/*` contract: response types and the aggregations behind them, shared by the app and the API                         |
 | `packages/scoring`             | Business rules shared by the app and the future API: device and persona scoring, fit, ticket grading, switch impact           |
 | `e2e`                          | `smoke.mjs` (clicks through the production build in Chrome) and `audit.mjs` (layout at 3 widths, axe WCAG 2.1 AA in 7 themes) |
 | `reference/personalfleet.html` | The wireframe; parity tests run its code and compare the results                                                              |

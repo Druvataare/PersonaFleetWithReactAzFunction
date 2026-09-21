@@ -18,7 +18,7 @@ Phase two: replace the mock API with real data from Microsoft Fabric, without ch
 | --- | ------------------------------- | ----------- | ------------- |
 | 1   | Data discovery                  | Done        | 18 Sep 2026   |
 | 2   | Gold layer build                | In progress | —             |
-| 3   | Functions app scaffold          | Not started | —             |
+| 3   | Functions app scaffold          | In progress | —             |
 | 4   | Fabric connection layer         | Not started | —             |
 | 5   | Configuration store             | Not started | —             |
 | 6   | Reference endpoints             | Not started | —             |
@@ -181,7 +181,7 @@ Each decision records what we chose, why, and what it costs us. Numbered so late
 
 ### AD-11 · The API contract is frozen
 
-**Decision.** `apps/web/src/api/types.ts` does not change in this phase. The mock handlers stay in the repository as the reference implementation and the test oracle.
+**Decision.** The contract — types and the aggregations that produce them — does not change in this phase. In step 3 it moved from `apps/web/src/api/types.ts` to **`packages/contract`** so the API and the mock API share one copy; the shapes are identical. The mock handlers stay in the repository as the reference implementation and the test oracle.
 
 **Why.** The front end is finished, tested and deployed. If the contract holds, the cutover is a configuration flag, and any difference between mock and live is a failing test rather than a bug report.
 
@@ -697,14 +697,14 @@ Boot, crash and free-space targets are **kept as adopted**: a baseline states wh
 
 **What we do**
 
-- Add `apps/api`: Azure Functions v4, Node 22, TypeScript strict, in the existing npm workspace.
-- Depend on `@pfc/scoring`; add the API's tests to the root Vitest run.
+- Add `apps/api`: Azure Functions v4, Node 22, TypeScript strict, in the existing npm workspace, bundled with esbuild so workspace packages survive deployment.
+- Move the API contract and its aggregations into `packages/contract`, shared by the API and the mock API; depend on `@pfc/scoring` too, and add the API's tests to the root Vitest run.
 - Local development through the Static Web Apps CLI so the browser sees one origin and `/api` behaves as in production.
 - One `GET /api/health` endpoint returning build and dependency status.
 
 **Test checkpoint**
 
-- `npm run dev` serves the web app with the API attached; `/api/health` returns 200.
+- `npm run dev` serves the web app on the mock API as before; `npm run dev:api` runs the Functions host and `/api/health` returns 200; `npm run dev:full` serves both through the Static Web Apps CLI (both need `func` and `swa` installed globally, so CI stays lean).
 - `npm run lint`, `npm test` and `npm run build` pass for the whole workspace.
 
 ---
@@ -757,7 +757,7 @@ Boot, crash and free-space targets are **kept as adopted**: a baseline states wh
 
 **Test checkpoint**
 
-- Responses validate against `apps/web/src/api/types.ts`.
+- Responses validate against `packages/contract/src/types.ts`.
 - With `VITE_USE_MOCKS=false` the Personas page shows six rings with real headcounts.
 
 ---
@@ -788,7 +788,7 @@ Boot, crash and free-space targets are **kept as adopted**: a baseline states wh
 - `GET /api/mapping/summary` and `/api/mapping/review` over the persona-group agreement measure (AD-16), with a generated `why`.
 - Make the front end read ticket categories from `/api/catalog` instead of `lib/categories.ts`: `charts/colors.ts` builds its colour scales from the API's lists, and the persona page's ticket mix groups by the API's categories (AD-10).
 - `GET /api/tickets/summary` from `persona_factticket` (AD-10), honouring the `kind`, persona and category parameters; confirm `tbl_brz_intune_app_deployment` for the requests tab.
-- Aggregation in SQL, with a test proving it agrees with the TypeScript aggregation in `apps/web/src/mocks/aggregate.ts`.
+- Aggregation in SQL, with a test proving it agrees with `packages/contract/src/aggregate.ts`, which the API and the mock API both run.
 
 **Test checkpoint**
 
