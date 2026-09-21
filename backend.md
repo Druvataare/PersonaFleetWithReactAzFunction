@@ -14,19 +14,19 @@ Phase two: replace the mock API with real data from Microsoft Fabric, without ch
 
 ## Progress
 
-| #   | Step                            | Status      | Date approved |
-| --- | ------------------------------- | ----------- | ------------- |
-| 1   | Data discovery                  | Done        | 18 Sep 2026   |
-| 2   | Gold layer build                | In progress | —             |
-| 3   | Functions app scaffold          | Done        | 21 Sep 2026   |
-| 4   | Fabric connection layer         | Not started | —             |
-| 5   | Configuration store             | Not started | —             |
-| 6   | Reference endpoints             | Not started | —             |
-| 7   | Fleet devices endpoint          | Not started | —             |
-| 8   | Mapping + aggregate endpoints   | Not started | —             |
-| 9   | Change endpoints and writeback  | Not started | —             |
-| 10  | Auth, caching and performance   | Not started | —             |
-| 11  | Contract tests, cutover, deploy | Not started | —             |
+| #   | Step                            | Status           | Date approved |
+| --- | ------------------------------- | ---------------- | ------------- |
+| 1   | Data discovery                  | Done             | 18 Sep 2026   |
+| 2   | Gold layer build                | In progress      | —             |
+| 3   | Functions app scaffold          | Done             | 21 Sep 2026   |
+| 4   | Fabric connection layer         | Blocked (policy) | —             |
+| 5   | Configuration store             | Not started      | —             |
+| 6   | Reference endpoints             | Not started      | —             |
+| 7   | Fleet devices endpoint          | Not started      | —             |
+| 8   | Mapping + aggregate endpoints   | Not started      | —             |
+| 9   | Change endpoints and writeback  | Not started      | —             |
+| 10  | Auth, caching and performance   | Not started      | —             |
+| 11  | Contract tests, cutover, deploy | Not started      | —             |
 
 Status values: `Not started` · `In progress` · `Testing` · `Done`
 
@@ -714,6 +714,10 @@ Boot, crash and free-space targets are **kept as adopted**: a baseline states wh
 ---
 
 ## Step 4 — Fabric connection layer
+
+**Blocked (21 Sep 2026): Azure Policy.** Creating the Function App fails because the subscription assignment _Deny Public Network Access_ (definition `Audit Public Network Access`, scope DFS CoE-DWP, owned by omkar.sharma@hcltech.com / Kislay_k@hcldwplabs.com) rejects the storage account Flex Consumption needs. Options, in order: (1) a **Policy exemption** for `Shashi-RG` or just the storage account — time-boxed, justified, leaves the shared assignment untouched; (2) build it the way the policy wants — VNet with a subnet delegated to `Microsoft.App/environments`, storage with public access disabled, private endpoints for blob/file/queue/table, and the Function App created with VNet integration (about $8/month more); (3) host the API on Azure Container Apps, which needs no storage account and can also be a Static Web Apps linked backend. Excluding `Shashi-RG` from the assignment would also work but is permanent, broad and edits someone else's control.
+
+**Settings agreed for the Function App:** Flex Consumption, Linux, Central India, Node.js 22 LTS, 2048 MB, `func-personafleet-api` in `Shashi-RG`, storage `stpersonafleetapi`, basic authentication disabled, continuous deployment disabled (step 11 deploys it from the existing workflow), public access on, no VNet. Application Insights cannot be enabled from the create form for this combination — attach it afterwards from the Function App's Application Insights blade.
 
 **Goal:** authenticated, pooled, observable access to the lakehouse.
 
