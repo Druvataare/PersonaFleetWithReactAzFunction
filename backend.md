@@ -18,7 +18,7 @@ Phase two: replace the mock API with real data from Microsoft Fabric, without ch
 | --- | ------------------------------- | ----------- | ------------- |
 | 1   | Data discovery                  | Done        | 18 Sep 2026   |
 | 2   | Gold layer build                | In progress | —             |
-| 3   | Functions app scaffold          | In progress | —             |
+| 3   | Functions app scaffold          | Done        | 21 Sep 2026   |
 | 4   | Fabric connection layer         | Not started | —             |
 | 5   | Configuration store             | Not started | —             |
 | 6   | Reference endpoints             | Not started | —             |
@@ -706,6 +706,10 @@ Boot, crash and free-space targets are **kept as adopted**: a baseline states wh
 
 - `npm run dev` serves the web app on the mock API as before; `npm run dev:api` runs the Functions host and `/api/health` returns 200; `npm run dev:full` serves both through the Static Web Apps CLI (both need `func` and `swa` installed globally, so CI stays lean).
 - `npm run lint`, `npm test` and `npm run build` pass for the whole workspace.
+
+---
+
+**Step 3 result (21 Sep 2026).** `packages/contract` now holds the API contract and its aggregations, shared by the API and the mock API; moving it touched 20 files and broke nothing. `apps/api` builds to a 1.2 kB esbuild bundle. The Functions host serves `GET /api/health` with 200 — `contract` ok, `scoring` ok, `fabric` not connected. 520 tests, lint, typecheck and the 45-step smoke test all pass. Local hosts (`func`, `swa`) are installed globally, not in `package.json`, so CI installs stay lean; `apps/api/local.settings.example.json` is the template for the gitignored `local.settings.json`.
 
 ---
 
