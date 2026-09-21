@@ -251,6 +251,14 @@ Each decision records what we chose, why, and what it costs us. Numbered so late
 
 **Consequence.** The front end knows only `/api/*` and `types.ts`; a Fabric rename costs, at most, one notebook or view edit. The notebook carries a copy of the `dimuser` / `dimdevice` columns it uses, refreshed each run.
 
+### AD-20 · A linked Function App, on Static Web Apps Standard
+
+**Decision.** The API is its own **Function App** on the **Flex Consumption** plan, attached to the Static Web App as a **linked backend**. The Static Web App moves from Free to **Standard** (about $9/month). No App Service, no Web App, and no separate front-end domain.
+
+**Why.** A linked backend keeps the API same-origin at `/api`, so the frozen contract (AD-11), the existing mock-vs-live tests and Entra sign-in all work unchanged. The alternative, the Static Web App's own managed functions, is free but **cannot use managed identity** — it would need a stored secret to reach Fabric, which AD-9 exists to prevent. Hosting the Function App on its own domain instead would keep the Free plan but add CORS, a second app registration and token handling in the browser, for about $9/month saved.
+
+**Consequence.** A small fixed monthly cost, and the Static Web App must be Standard before step 4 links the backend. Flex Consumption bills per execution with nothing charged while idle; the Function App also needs a storage account.
+
 ### AD-19 · Everything we add is prefixed `persona`
 
 **Decision.** Every lakehouse table and view we create is named `persona_` + its name — `persona_dimpersona`, `persona_factticket`, `persona_vw_api_v1_device`. SQL database tables follow the same rule (`persona_policy`, `persona_change`, `persona_provisioning_request`, `persona_app_exception`), since they mirror into OneLake too. A column added to a table we do not own is prefixed `Persona` in the lakehouse's PascalCase (`PersonaCpuScore`). Columns inside our own `persona_` tables keep plain names — the table prefix already marks them — and columns copied from source tables keep their source names (`DeviceId`, `UserId`) so joins read naturally.
@@ -710,6 +718,7 @@ Boot, crash and free-space targets are **kept as adopted**: a baseline states wh
 - A thin `query<T>()` helper that is the only place SQL text is executed — parameterised only, no string concatenation.
 - Every row validated against a `zod` schema in its endpoint mapper, so a missing column fails loudly with the field named (AD-18).
 - Admin prerequisites completed: tenant setting _Service principals can use Fabric APIs_, workspace access for the identity, grants on the views (AD-3).
+- Create the Function App (Flex Consumption) in `Shashi-RG`, upgrade the Static Web App to Standard and link it as the backend, so the API is served same-origin at `/api` (AD-20).
 
 **Test checkpoint**
 
@@ -846,20 +855,20 @@ Boot, crash and free-space targets are **kept as adopted**: a baseline states wh
 
 Answered items keep their evidence. Queries are in [sql/discovery.sql](sql/discovery.sql).
 
-| #   | Question                                                         | Answer                                                                                |
-| --- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| 1   | Devices whole or paginated?                                      | ✅ Whole — 5,000 devices, with `installed[]` filtered (AD-13)                         |
-| 2   | Synthetic, real or mixed?                                        | ✅ Entirely synthetic — labelled, not filtered (AD-14)                                |
-| 3   | Do persona values match the portal's seven?                      | ✅ No — six, including a new Retail persona (AD-15)                                   |
-| 4   | Is consistency-based mapping confidence viable?                  | ✅ No — all 21 titles map to one persona; replaced by persona-group agreement (AD-16) |
-| 5   | Is `dimdevice.DeviceId` the Entra device id?                     | ✅ No — bridge required, 100% coverage (AD-7)                                         |
-| 6   | Days of `fact_device_score_daily` history?                       | ✅ None — table empty (AD-12)                                                         |
-| 7   | What is in `fact_device_metric_daily.MetricKey`?                 | ✅ Nothing — table empty (AD-12)                                                      |
-| 8   | Is the endpoint-fix lifecycle a usable ticket substitute?        | ✅ Yes — 3,508 escalations, 7,991 failures, with reason and requester (AD-10)         |
-| 9   | Is there a ServiceNow (or equivalent) source to ingest?          | Open                                                                                  |
-| 10  | Subscription and resource group — `Shashi-RG`, Central India?    | Open                                                                                  |
-| 11  | Entra sign-in required, and which group gets `editor`?           | Open                                                                                  |
-| 12  | **Is a DEX scoring pipeline meant to populate the fact tables?** | Open — decides whether step 2 builds gold or waits for it                             |
-| 13  | **What baseline should the Retail persona have?**                | ✅ 8 GB · 256 GB · 6-core; all six baselines adopted 18 Sep 2026                      |
-| 14  | Is `tbl_brz_intune_app_deployment` the right requests source?    | Open — confirmed in step 8                                                            |
-| 15  | Which lakehouse is the source?                                   | ✅ The first; the second differs only by two unused tables and broken views (AD-17)   |
+| #   | Question                                                                                             | Answer                                                                                |
+| --- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 1   | Devices whole or paginated?                                                                          | ✅ Whole — 5,000 devices, with `installed[]` filtered (AD-13)                         |
+| 2   | Synthetic, real or mixed?                                                                            | ✅ Entirely synthetic — labelled, not filtered (AD-14)                                |
+| 3   | Do persona values match the portal's seven?                                                          | ✅ No — six, including a new Retail persona (AD-15)                                   |
+| 4   | Is consistency-based mapping confidence viable?                                                      | ✅ No — all 21 titles map to one persona; replaced by persona-group agreement (AD-16) |
+| 5   | Is `dimdevice.DeviceId` the Entra device id?                                                         | ✅ No — bridge required, 100% coverage (AD-7)                                         |
+| 6   | Days of `fact_device_score_daily` history?                                                           | ✅ None — table empty (AD-12)                                                         |
+| 7   | What is in `fact_device_metric_daily.MetricKey`?                                                     | ✅ Nothing — table empty (AD-12)                                                      |
+| 8   | Is the endpoint-fix lifecycle a usable ticket substitute?                                            | ✅ Yes — 3,508 escalations, 7,991 failures, with reason and requester (AD-10)         |
+| 9   | Is there a ServiceNow (or equivalent) source to ingest?                                              | Open                                                                                  |
+| 10  | ✅ `Shashi-RG`, Central India; Static Web App upgraded to Standard for a linked Function App (AD-20) | Open                                                                                  |
+| 11  | Entra sign-in required, and which group gets `editor`?                                               | Open                                                                                  |
+| 12  | **Is a DEX scoring pipeline meant to populate the fact tables?**                                     | Open — decides whether step 2 builds gold or waits for it                             |
+| 13  | **What baseline should the Retail persona have?**                                                    | ✅ 8 GB · 256 GB · 6-core; all six baselines adopted 18 Sep 2026                      |
+| 14  | Is `tbl_brz_intune_app_deployment` the right requests source?                                        | Open — confirmed in step 8                                                            |
+| 15  | Which lakehouse is the source?                                                                       | ✅ The first; the second differs only by two unused tables and broken views (AD-17)   |
