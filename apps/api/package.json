@@ -12,10 +12,14 @@
   },
   "dependencies": {
     "@azure/functions": "^4.8.0",
+    "@azure/identity": "^4.13.3",
     "@pfc/contract": "*",
-    "@pfc/scoring": "*"
+    "@pfc/scoring": "*",
+    "mssql": "^12.7.2",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/mssql": "^12.3.0",
     "esbuild": "^0.27.0"
   }
 }

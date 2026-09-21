@@ -1,21 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { health, healthPayload } from "./health.ts";
+import { healthPayload } from "./health.ts";
 
 describe("health", () => {
-  it("reports the shared packages as wired and Fabric as not yet connected", () => {
-    const payload = healthPayload();
-    expect(payload.checks.map((c) => [c.name, c.ok])).toEqual([
+  it("is ok only when every check passes, including Fabric", () => {
+    const ok = healthPayload({ ok: true, detail: "connected in 41ms, data as of 2026-09-09" });
+    expect(ok.status).toBe("ok");
+    expect(ok.checks.map((c) => [c.name, c.ok])).toEqual([
       ["contract", true],
       ["scoring", true],
-      ["fabric", false],
+      ["fabric", true],
     ]);
-    expect(payload.status).toBe("degraded");
-    expect(payload.node).toMatch(/^v\d+\./);
+    expect(ok.node).toMatch(/^v\d+\./);
   });
 
-  it("answers with JSON that is never cached", async () => {
-    const response = await health();
-    expect(response.headers).toEqual({ "Cache-Control": "no-store" });
-    expect((response.jsonBody as { checks: unknown[] }).checks).toHaveLength(3);
+  it("is degraded, with the reason, when Fabric is not reachable", () => {
+    const degraded = healthPayload({ ok: false, detail: "not configured" });
+    expect(degraded.status).toBe("degraded");
+    expect(degraded.checks.find((c) => c.name === "fabric")).toEqual({
+      name: "fabric",
+      ok: false,
+      detail: "not configured",
+    });
   });
 });

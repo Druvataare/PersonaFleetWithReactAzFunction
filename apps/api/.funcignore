@@ -4,3 +4,5 @@ build.mjs
 tsconfig.json
 vitest.config.ts
 local.settings.json
+
+.venv

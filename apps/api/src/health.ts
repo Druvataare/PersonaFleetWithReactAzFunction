@@ -1,8 +1,9 @@
-/* GET /api/health — is the API up, and are its dependencies wired?
-   Step 4 adds the Fabric connection to the checks. */
+/* GET /api/health — is the API up, are its dependencies wired, and can it
+   reach Fabric? */
 import { app, type HttpResponseInit } from "@azure/functions";
 import { REVIEW_LIMIT } from "@pfc/contract";
 import { deviceScore } from "@pfc/scoring";
+import { checkFabric, type FabricStatus } from "./fabric/freshness.ts";
 
 export interface HealthCheck {
   name: string;
@@ -17,8 +18,8 @@ export interface HealthPayload {
   checks: HealthCheck[];
 }
 
-/** The body of the health response; kept separate from the handler so it is testable on its own. */
-export function healthPayload(): HealthPayload {
+/** The body of the health response; pure, so it is testable on its own. */
+export function healthPayload(fabric: FabricStatus): HealthPayload {
   const checks: HealthCheck[] = [
     {
       name: "contract",
@@ -31,7 +32,7 @@ export function healthPayload(): HealthPayload {
       ok: deviceScore({ prov: 100, perf: 100, comp: 100, exp: 100 }) === 100,
       detail: "@pfc/scoring loaded, device scoring agrees with the browser",
     },
-    { name: "fabric", ok: false, detail: "not connected yet — step 4" },
+    { name: "fabric", ...fabric },
   ];
   return {
     status: checks.every((c) => c.ok) ? "ok" : "degraded",
@@ -42,7 +43,12 @@ export function healthPayload(): HealthPayload {
 }
 
 export async function health(): Promise<HttpResponseInit> {
-  return { jsonBody: healthPayload(), headers: { "Cache-Control": "no-store" } };
+  const payload = healthPayload(await checkFabric());
+  return {
+    status: payload.status === "ok" ? 200 : 503,
+    jsonBody: payload,
+    headers: { "Cache-Control": "no-store" },
+  };
 }
 
 app.http("health", { route: "health", methods: ["GET"], authLevel: "anonymous", handler: health });
