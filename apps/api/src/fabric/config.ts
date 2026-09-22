@@ -23,22 +23,28 @@ const number = (value: string | undefined, fallback: number) => {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 };
 
-/** Reads the configuration, or throws naming exactly what is missing. */
+/** Reads the configuration, or throws naming exactly what is missing.
+    Setting names avoid underscores and the word "Fabric" as a leading
+    SCREAMING_SNAKE prefix: the portal's Environment variables blade for this
+    Function App rejected FABRIC_SQL_ENDPOINT (confirmed 22 Sep 2026), most
+    likely because this subscription has AI/Fabric-integration preview
+    features enabled that reserve that naming pattern for their own
+    connection settings. PascalCase side-steps it either way. */
 export function readConfig(env: Record<string, string | undefined> = process.env): FabricConfig {
-  const server = env.FABRIC_SQL_ENDPOINT?.trim();
-  const database = env.FABRIC_SQL_DATABASE?.trim();
-  const missing = [...(server ? [] : ["FABRIC_SQL_ENDPOINT"]), ...(database ? [] : ["FABRIC_SQL_DATABASE"])];
+  const server = env.FabricSqlEndpoint?.trim();
+  const database = env.FabricSqlDatabase?.trim();
+  const missing = [...(server ? [] : ["FabricSqlEndpoint"]), ...(database ? [] : ["FabricSqlDatabase"])];
   if (!server || !database) throw new FabricNotConfiguredError(missing);
   return {
     server,
     database,
-    connectTimeoutMs: number(env.FABRIC_CONNECT_TIMEOUT_MS, 15_000),
+    connectTimeoutMs: number(env.FabricConnectTimeoutMs, 15_000),
     /* The SQL analytics endpoint is an analytics engine: a cold query can take
        seconds, but the portal should fail rather than hang (AD-8). */
-    queryTimeoutMs: number(env.FABRIC_QUERY_TIMEOUT_MS, 20_000),
-    poolMax: number(env.FABRIC_POOL_MAX, 10),
+    queryTimeoutMs: number(env.FabricQueryTimeoutMs, 20_000),
+    poolMax: number(env.FabricPoolMax, 10),
   };
 }
 
 export const isConfigured = (env: Record<string, string | undefined> = process.env): boolean =>
-  Boolean(env.FABRIC_SQL_ENDPOINT?.trim() && env.FABRIC_SQL_DATABASE?.trim());
+  Boolean(env.FabricSqlEndpoint?.trim() && env.FabricSqlDatabase?.trim());

@@ -68,23 +68,23 @@ afterEach(() => vi.useRealTimers());
 
 describe("configuration", () => {
   it("reads settings and applies defaults", () => {
-    const c = readConfig({ FABRIC_SQL_ENDPOINT: " a.b ", FABRIC_SQL_DATABASE: "Db" });
+    const c = readConfig({ FabricSqlEndpoint: " a.b ", FabricSqlDatabase: "Db" });
     expect(c).toMatchObject({ server: "a.b", database: "Db", queryTimeoutMs: 20_000, poolMax: 10 });
   });
 
   it("names exactly what is missing", () => {
-    expect(() => readConfig({})).toThrow("set FABRIC_SQL_ENDPOINT and FABRIC_SQL_DATABASE");
-    expect(() => readConfig({ FABRIC_SQL_ENDPOINT: "a" })).toThrow("set FABRIC_SQL_DATABASE");
+    expect(() => readConfig({})).toThrow("set FabricSqlEndpoint and FabricSqlDatabase");
+    expect(() => readConfig({ FabricSqlEndpoint: "a" })).toThrow("set FabricSqlDatabase");
     expect(() => readConfig({})).toThrow(FabricNotConfiguredError);
-    expect(isConfigured({ FABRIC_SQL_ENDPOINT: "a", FABRIC_SQL_DATABASE: "b" })).toBe(true);
+    expect(isConfigured({ FabricSqlEndpoint: "a", FabricSqlDatabase: "b" })).toBe(true);
     expect(isConfigured({})).toBe(false);
   });
 
   it("ignores nonsense timeout overrides", () => {
     const c = readConfig({
-      FABRIC_SQL_ENDPOINT: "a",
-      FABRIC_SQL_DATABASE: "b",
-      FABRIC_QUERY_TIMEOUT_MS: "-5",
+      FabricSqlEndpoint: "a",
+      FabricSqlDatabase: "b",
+      FabricQueryTimeoutMs: "-5",
     });
     expect(c.queryTimeoutMs).toBe(20_000);
   });
@@ -168,7 +168,7 @@ describe("checkFabric", () => {
     const status = await checkFabric({}, {});
     expect(status).toEqual({
       ok: false,
-      detail: "not configured — set FABRIC_SQL_ENDPOINT and FABRIC_SQL_DATABASE",
+      detail: "not configured — set FabricSqlEndpoint and FabricSqlDatabase",
     });
   });
 
@@ -178,7 +178,7 @@ describe("checkFabric", () => {
     ]);
     const status = await checkFabric(
       { config, driver: fake.driver, tokens: tokens() },
-      { FABRIC_SQL_ENDPOINT: "a", FABRIC_SQL_DATABASE: "b" },
+      { FabricSqlEndpoint: "a", FabricSqlDatabase: "b" },
     );
     expect(status.ok).toBe(true);
     expect(status.detail).toMatch(/^connected in \d+ms, data as of 2026-09-09$/);
@@ -188,7 +188,7 @@ describe("checkFabric", () => {
     const fake = fakeDriver([new Error("Login failed for user")]);
     const status = await checkFabric(
       { config, driver: fake.driver, tokens: tokens(), backoffMs: [] },
-      { FABRIC_SQL_ENDPOINT: "a", FABRIC_SQL_DATABASE: "b" },
+      { FabricSqlEndpoint: "a", FabricSqlDatabase: "b" },
     );
     expect(status.ok).toBe(false);
     expect(status.detail).toContain("Login failed for user");

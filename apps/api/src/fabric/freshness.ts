@@ -31,7 +31,7 @@ export interface FabricStatus {
 /** Never throws: the health endpoint reports the failure rather than becoming one. */
 export async function checkFabric(deps: QueryDeps = {}, env = process.env): Promise<FabricStatus> {
   if (!isConfigured(env)) {
-    return { ok: false, detail: "not configured — set FABRIC_SQL_ENDPOINT and FABRIC_SQL_DATABASE" };
+    return { ok: false, detail: "not configured — set FabricSqlEndpoint and FabricSqlDatabase" };
   }
   try {
     const { freshness, ms } = await readFreshness(deps);
