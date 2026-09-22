@@ -34,7 +34,7 @@
               "clientSecretSettingName": "AAD_CLIENT_SECRET"
             },
             "openIdConnectConfiguration": {
-              "wellKnownOpenIdConfiguration": "https://login.microsoftonline.com/<TENANT_ID>/v2.0/.well-known/openid-configuration"
+              "wellKnownOpenIdConfiguration": "https://login.microsoftonline.com/01f48ee8-94f3-448d-90de-0a89fff4a6a4/v2.0/.well-known/openid-configuration"
             }
           },
           "login": {
