@@ -750,6 +750,12 @@ Boot, crash and free-space targets are **kept as adopted**: a baseline states wh
 
 **A real compensating control, not just "public and hoping."** Linking a Function App to a Static Web App automatically adds an identity provider ("Azure Static Web Apps (Linked)") restricting calls to that SWA's own identity — the Functions doc's unlink section warns not to delete it, "to prevent accidentally exposing your function app to anonymous traffic." Combined with the tenant-restricted Entra sign-in already live on every route, the Function App is access-controlled at the application layer even with `publicNetworkAccess: Enabled`. Worth citing explicitly in the exemption request.
 
+**Resolved (22 Sep 2026).** Exemption granted at `Shashi-RG` scope, covering the whole policy category rather than one assignment — the broader ask paid off, since enabling the managed identity afterwards hit the same policy again on an unrelated PATCH and the group-level exemption covered that too, with no second request needed. `func-personafleet-api` created and running: Flex Consumption, Linux, Central India, public access on, outbound-only VNet integration to the network-secured storage account.
+
+**Function App wired up.** System-assigned managed identity on, object (principal) ID `a75adc56-0783-4dc4-b183-b7568262afe0`. Application Insights on. Linked to the Static Web App as its backend (Settings → APIs → Production → Link), confirmed `api_location: ""` in the workflow first, as the linking docs require. Deployment packaging fixed and proven via `apps/api/deploy/` (see the entry below).
+
+**Still open:** the Function App's own Application Settings need `FABRIC_SQL_ENDPOINT` and `FABRIC_SQL_DATABASE` set (local.settings.json only affects local dev). On the Fabric side: enable "Service principals can use Fabric APIs" for this identity, share the lakehouse SQL analytics endpoint with it (Read), and run the `CREATE USER … FROM EXTERNAL PROVIDER` + `GRANT SELECT` script against the ten `persona_vw_api_v1_*` views. Once both are done, `/api/health` should report Fabric connected.
+
 **Goal:** authenticated, pooled, observable access to the lakehouse.
 
 **What we do**
