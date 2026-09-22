@@ -29,9 +29,17 @@ GRANT SELECT ON dbo.persona_vw_api_v1_ticket          TO [func-personalfleet-api
 GRANT SELECT ON dbo.persona_vw_api_v1_title_mapping   TO [func-personalfleet-api];
 GRANT SELECT ON dbo.persona_vw_api_v1_migration       TO [func-personalfleet-api];
 
--- Check: confirms the principal now exists and lists exactly what it can read.
-SELECT DISTINCT pr.name, pr.type_desc, pr.authentication_type_desc, pe.permission_name, pe.state_desc
+/* Check: confirms the principal exists and names every object it can read.
+   Expect twelve rows: one CONNECT (from the item-level share, which has no
+   object), one SELECT per view, and nothing else. An object listed here that
+   is not a persona_vw_api_v1_* view means something granted more than AD-3
+   intends — most likely the "Read all data using SQL analytics endpoint" box
+   was ticked when the lakehouse was shared, which grants blanket read and
+   makes these GRANTs decorative. */
+SELECT pr.name AS principal_name, pr.type_desc, pr.authentication_type_desc,
+       o.name AS object_name, pe.permission_name, pe.state_desc
 FROM sys.database_principals AS pr
 JOIN sys.database_permissions AS pe ON pe.grantee_principal_id = pr.principal_id
+LEFT JOIN sys.objects AS o ON o.object_id = pe.major_id AND pe.class = 1
 WHERE pr.name = 'func-personalfleet-api'
-ORDER BY pe.permission_name;
+ORDER BY pe.permission_name, o.name;
