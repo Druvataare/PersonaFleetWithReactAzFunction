@@ -6,6 +6,7 @@
   "routes": [
     {
       "route": "/index.html",
+      "allowedRoles": ["authenticated"],
       "headers": { "Cache-Control": "no-cache" }
     },
     {
