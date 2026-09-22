@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "types": ["node"] },
-  "include": ["src", "build.mjs"]
+  "include": ["src", "build.mjs", "prepare-deploy.mjs"]
 }

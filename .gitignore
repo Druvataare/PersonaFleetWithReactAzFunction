@@ -11,4 +11,5 @@ e2e/audit-output
 
 # Azure Functions
 apps/api/dist/
+apps/api/deploy/
 apps/api/local.settings.json
