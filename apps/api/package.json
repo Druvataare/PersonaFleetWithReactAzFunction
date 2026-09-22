@@ -2,7 +2,6 @@
   "name": "@pfc/api",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "description": "Persona Fleet Command API: Azure Functions serving /api/* from Microsoft Fabric.",
   "main": "dist/index.js",
   "scripts": {

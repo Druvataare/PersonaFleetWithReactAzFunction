@@ -1,7 +1,7 @@
 /* Builds apps/api/deploy: a self-contained folder ready to zip and deploy.
-   dist/index.js bundles our own code and the two workspace packages, but
-   every real npm dependency (@azure/functions, @azure/identity, mssql, zod —
-   see build.mjs for why) stays external. In an npm-workspaces monorepo those
+   dist/index.js (CommonJS — see build.mjs) bundles our own code and the two
+   workspace packages, but every real npm dependency (@azure/functions,
+   @azure/identity, mssql, zod) stays external. In an npm-workspaces monorepo those
    are hoisted to the repo root's node_modules, so a deploy of just apps/api
    on its own has no ancestor node_modules to find them in — they have to
    travel with the package. Rather than hand-copy them and guess at their own
@@ -30,7 +30,6 @@ writeFileSync(
       name: pkg.name,
       version: pkg.version,
       private: true,
-      type: "module",
       main: "dist/index.js",
       dependencies: external,
     },
