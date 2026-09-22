@@ -169,6 +169,8 @@ Each decision records what we chose, why, and what it costs us. Numbered so late
 
 **Admin consent required (22 Sep 2026).** First real sign-in attempt showed "Approval required" — this tenant has user consent disabled, so a new app registration's permissions (`User.Read`, `offline_access` — the portal's default grant, nothing added by us) need an admin to approve once for everyone, not a per-user prompt. Fix: **Entra admin center → App registrations → `PersonaFleetCommand` → API permissions → Grant admin consent for hcldwplabs.com**, by a Global/Application/Cloud Application Administrator.
 
+**Button greyed out for the app owner.** Viewing/managing the app registration does not itself carry the directory-level right to grant tenant-wide consent — that needs Global Administrator, Application Administrator or Cloud Application Administrator specifically. Waiting on one of those to click it, or to open the equivalent link directly: `https://login.microsoftonline.com/01f48ee8-94f3-448d-90de-0a89fff4a6a4/adminconsent?client_id=f77f6978-1be4-46a3-b92d-e47046723895&redirect_uri=https://agreeable-coast-025d2f100.2.azurestaticapps.net`.
+
 ### AD-10 · Tickets come from the endpoint-fix lifecycle, labelled as such
 
 **Decision.** `/api/tickets/summary` and `Device.tickets[]` are sourced from `tbl_brz_epfix_eventlifecycle`, not invented. The portal names the source.
