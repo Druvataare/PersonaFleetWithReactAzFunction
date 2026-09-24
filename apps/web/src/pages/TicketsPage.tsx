@@ -1,7 +1,7 @@
 /* 03 · WHAT IT COSTS — incidents and service requests, graded per user against each
    persona's ticket ceiling. Follows the wireframe's screenTickets. */
 import { ticketBaselinePerUser, ticketStatus } from "@pfc/scoring";
-import { useTicketSummary } from "../api/queries.ts";
+import { useCatalog, useTicketSummary } from "../api/queries.ts";
 import type { TicketKind } from "@pfc/contract";
 import { BarList, Donut, StackedAge, ticketCategoryColor, WeekBars } from "../charts/index.ts";
 import { LegendList } from "../components/LegendList.tsx";
@@ -26,6 +26,7 @@ export default function TicketsPage() {
   const set = useUi((s) => s.set);
   const { model, error: modelError } = useFleetModel();
   const summary = useTicketSummary(kind, persona, cat);
+  const catalog = useCatalog();
   const inc = kind === "inc";
 
   const tools = (
@@ -70,16 +71,20 @@ export default function TicketsPage() {
     <PageHead
       step="03 · WHAT IT COSTS"
       title="Tickets"
+      /* Naming the source is not a caveat, it is the claim (AD-10). These are
+         endpoint remediation events, not service-desk tickets, and a reader
+         who assumes otherwise will draw the wrong conclusion about what the
+         numbers cost. */
       sub={
         inc
-          ? "Incidents raised against the fleet, graded per user against each persona's ticket ceiling. A persona over its ceiling on a strong device is a support problem, not a hardware one."
-          : "Service requests rather than faults. Repeated memory and storage requests are usually a baseline set too low."
+          ? "Automated endpoint fixes that failed or escalated to a person — remediation load, not service-desk load. Repeated failures of the same fix count once. Graded per user against each persona's ticket ceiling: a persona over its ceiling on a strong device is a support problem, not a hardware one."
+          : "Application requests, taken from deployment records rather than a service desk. Repeated memory and storage requests are usually a baseline set too low."
       }
       tools={tools}
     />
   );
 
-  const error = modelError ?? summary.error;
+  const error = modelError ?? summary.error ?? catalog.error;
   if (error)
     return (
       <>
@@ -87,7 +92,7 @@ export default function TicketsPage() {
         <ErrorMessage error={error} />
       </>
     );
-  if (!model || !summary.data)
+  if (!model || !summary.data || !catalog.data)
     return (
       <>
         {head}
@@ -108,7 +113,9 @@ export default function TicketsPage() {
   const worst = scoped.length ? Math.max(...scoped.map((r) => r.variance)) : 0;
   const label = inc ? "incidents" : "requests";
   const top = s.byCategory[0];
-  const color = ticketCategoryColor(C);
+  /* Both vocabularies, in the API's order: incidents colour the same whether
+     the page is showing them or requests. */
+  const color = ticketCategoryColor(C, [...catalog.data.ticketCategories, ...catalog.data.catalogItems]);
   const toggleCat = (k: string) => set({ ticketCatFilter: cat === k ? null : k });
 
   return (

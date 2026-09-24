@@ -29,7 +29,6 @@ import { Avatar } from "../../components/Avatar.tsx";
 import { Icon } from "../../components/Icon.tsx";
 import { ChartType, Panel, Sect } from "../../components/ui.tsx";
 import { ageByPriority, tally } from "@pfc/contract";
-import { TICKET_CATS } from "../../lib/categories.ts";
 import { gb, toneColor } from "../../lib/format.ts";
 import { personaTrend } from "../../lib/trend.ts";
 import { MotionFrame } from "../../motion/clock.tsx";
@@ -239,16 +238,18 @@ export function Provisioning({ p }: { p: PersonaModel }) {
 interface ExperienceProps {
   p: PersonaModel;
   cat: string | null;
+  /** Incident categories from /api/catalog, in the order the API returns. */
+  cats: readonly string[];
   onCategory: (cat: string | null) => void;
 }
 
-export function ExperienceCompliance({ p, cat, onCategory }: ExperienceProps) {
+export function ExperienceCompliance({ p, cat, cats, onCategory }: ExperienceProps) {
   const C = usePalette();
-  const color = incidentCategoryColor(C);
+  const color = incidentCategoryColor(C, cats);
   const tickets = p.devices.flatMap((d) => d.tickets);
-  const byCat = TICKET_CATS.map((c) => ({ key: c, n: tickets.filter((t) => t.cat === c).length })).filter(
-    (d) => d.n,
-  );
+  const byCat = cats
+    .map((c) => ({ key: c, n: tickets.filter((t) => t.cat === c).length }))
+    .filter((d) => d.n);
   const toggle = (c: string) => onCategory(cat === c ? null : c);
   return (
     <>

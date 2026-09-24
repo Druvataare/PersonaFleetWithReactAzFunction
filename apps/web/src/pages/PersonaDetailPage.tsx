@@ -75,6 +75,7 @@ export default function PersonaDetailPage() {
       <ExperienceCompliance
         p={p}
         cat={cat}
+        cats={catalog.data.ticketCategories}
         onCategory={(c) => set({ ticketCategory: c, deviceQuery: query, deviceFilterPersona: p.id })}
       />
       <SupportLoad p={p} />

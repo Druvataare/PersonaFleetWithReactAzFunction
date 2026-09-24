@@ -5,7 +5,7 @@ import { buildModel, fitByPersona, FIT_KINDS, healthTone, type PersonaModel } fr
 import { render } from "@testing-library/react";
 import { beforeAll, describe, expect, it } from "vitest";
 import { ageByPriority, tally } from "@pfc/contract";
-import { TICKET_CATS } from "../lib/categories.ts";
+import { CATALOG, TICKET_CATS } from "../lib/categories.ts";
 import { personaTrend } from "../lib/trend.ts";
 import { ticketSummary } from "@pfc/contract";
 import { generateFleetData } from "../mocks/data/generate.ts";
@@ -233,7 +233,7 @@ describe("charts match the wireframe shape for shape", () => {
     const byCat = TICKET_CATS.map((c) => ({ cat: c, n: tickets.filter((t) => t.cat === c).length })).filter(
       (d) => d.n,
     );
-    const color = incidentCategoryColor(C);
+    const color = incidentCategoryColor(C, TICKET_CATS);
     const want = wireframeShapes(wf.charts.ticketDonut(byCat, active, 160));
     const got = reactShapes(
       <Donut
@@ -265,7 +265,7 @@ describe("charts match the wireframe shape for shape", () => {
     const rows = summary.byCategory;
     wf.charts.setTicketCategory(active);
     const want = wireframeShapes(wf.charts.ticketDonutT(rows, 190));
-    const color = ticketCategoryColor(C);
+    const color = ticketCategoryColor(C, TICKET_CATS.concat(CATALOG));
     expect(
       reactShapes(
         <Donut

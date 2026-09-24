@@ -967,6 +967,20 @@ It is also most of the payload: 19 identical strings on each of 5,000 devices is
 
 ## Step 8 — Mapping and aggregate endpoints
 
+**Status:** API and front-end changes done, 24 Sep 2026. `/api/mapping/summary`, `/api/mapping/review` and `/api/tickets/summary` are built in `apps/api/src/aggregate/`; the front end no longer hardcodes ticket categories. **The Requests tab still has no data** — see below.
+
+**The API reads grain and runs the shared functions.** `rows.ts` reads the two grain views and hands them to `mappingSummary`, `mappingReview` and `ticketSummary` from `@pfc/contract` — the same functions the mock API calls. Two tests assert the endpoint's output equals calling those functions directly on the same rows, which is a parity check that cannot drift, because there is only one implementation to drift from.
+
+**Tickets are never filtered in SQL.** `ticketSummary`'s `perPersona` block reports every persona regardless of the persona filter, so the endpoint reads the whole set for a kind and lets the shared function scope it. A test asserts the SQL contains no persona predicate and that a request filtered to one persona still reports the others — the kind of thing that would otherwise be "fixed" later by someone optimising the query and quietly emptying a chart.
+
+**`kind` is the filter and never travels.** It is a `@parameter` in the `WHERE` clause and is not selected, so it cannot reach the response as a field the contract has no place for.
+
+**The front end's ticket vocabulary now comes from `/api/catalog`.** `charts/colors.ts` previously built its colour domains from `lib/categories.ts` — the wireframe's invented six ("Performance", "Hardware", "Access"…), which this estate does not have; its categories are its own remediation rules (OneDrive sync, Browser, Network, Printing, Disk space, Windows Update). A hardcoded domain would have coloured every real category grey. Both scale factories now take the domain as a required argument rather than defaulting, so a caller cannot forget and silently fall back to a list that no longer describes the data. `lib/categories.ts` stays, because the mock legitimately generates wireframe data; only production code stopped importing it.
+
+**The Tickets page now names its source, and the old subtitle was worse than silent.** It read "Incidents raised against the fleet", which a reader would take as service-desk tickets. AD-10 requires the portal to name the source, and it matters here more than most places: these are automated endpoint fixes that failed or escalated, with repeat failures folded into one episode and priority derived from outcome. The page says that now.
+
+**Outstanding: the Requests tab has no data and the `req` side is unbuilt.** `persona_factticket` holds 3,439 incidents and zero requests, so `/api/tickets/summary?type=req` returns a valid, entirely empty summary and `catalogItems` stays `[]`. The endpoint is finished; the gold build is not. Building it is step 2 work in the notebook, not API work, and it needs the definition question answered first — 3,600,000 app-deployment rows cannot become 3,600,000 tickets, so what counts as one request has to be stated and defended before any SQL is written. Until then the tab will show zeros, which reads as "no requests" rather than "not measured": worth handling explicitly at the step 9 cutover rather than letting an empty chart imply good news.
+
 **Goal:** the confidence story and the aggregate-heavy summaries.
 
 **What we do**
@@ -974,7 +988,9 @@ It is also most of the payload: 19 identical strings on each of 5,000 devices is
 - `GET /api/mapping/summary` and `/api/mapping/review` over the persona-group agreement measure (AD-16), with a generated `why`.
 - Make the front end read ticket categories from `/api/catalog` instead of `lib/categories.ts`: `charts/colors.ts` builds its colour scales from the API's lists, and the persona page's ticket mix groups by the API's categories (AD-10).
 - `GET /api/tickets/summary` from `persona_factticket` (AD-10), honouring the `kind`, persona and category parameters; confirm `tbl_brz_intune_app_deployment` for the requests tab.
-- Aggregation in SQL, with a test proving it agrees with `packages/contract/src/aggregate.ts`, which the API and the mock API both run.
+- ~~Aggregation in SQL, with a test proving it agrees with `packages/contract/src/aggregate.ts`~~ — **superseded 24 Sep 2026.** This line contradicts what step 2e actually built. The views are deliberately at grain, and their header says why: "filtering and aggregation (mapping summary, review queue, ticket summary) run in the API with the same tested functions the mock API uses, so mock and live cannot disagree." Aggregating in SQL as well would mean two implementations of every total, kept in step by a test — and a test can only catch a divergence that someone thought to write a case for. Running `aggregate.ts` itself makes the two agree by construction rather than by vigilance, which is the stronger guarantee and the one AD-8 asked for.
+
+  The cost is that the API reads grain and reduces it in memory: about 3,400 ticket rows and a few hundred title rows per request. `ticketSummary` needs the unfiltered set anyway, because its `perPersona` block reports every persona regardless of the persona filter, so fetching only the filtered rows would not work even if we wanted it to. If those row counts grow by an order of magnitude this is worth revisiting — but then the fix is caching the reduction, not duplicating it in SQL.
 
 **Test checkpoint**
 

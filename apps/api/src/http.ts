@@ -16,15 +16,19 @@ import type { ApiError } from "@pfc/contract";
    this with the rest of the caching story. */
 const REFERENCE_MAX_AGE_SEC = 300;
 
+/* `read` receives the request so parameterised endpoints can reach the query
+   string. Handlers that ignore it keep passing `() => readThing()`, which
+   still satisfies this type — a function may always take fewer arguments
+   than its caller supplies. */
 export function readerHandler<T>(
   name: string,
-  read: () => Promise<T>,
+  read: (request: HttpRequest) => Promise<T>,
 ): (request: HttpRequest, context: InvocationContext) => Promise<HttpResponseInit> {
-  return async (_request, context) => {
+  return async (request, context) => {
     try {
       return {
         status: 200,
-        jsonBody: await read(),
+        jsonBody: await read(request),
         headers: { "Cache-Control": `public, max-age=${REFERENCE_MAX_AGE_SEC}` },
       };
     } catch (error) {
