@@ -3,6 +3,7 @@
 import { app, type HttpResponseInit } from "@azure/functions";
 import { REVIEW_LIMIT } from "@pfc/contract";
 import { deviceScore } from "@pfc/scoring";
+import { checkConfigStore } from "./fabric/configStore.ts";
 import { checkFabric, type FabricStatus } from "./fabric/freshness.ts";
 
 export interface HealthCheck {
@@ -19,7 +20,7 @@ export interface HealthPayload {
 }
 
 /** The body of the health response; pure, so it is testable on its own. */
-export function healthPayload(fabric: FabricStatus): HealthPayload {
+export function healthPayload(fabric: FabricStatus, configStore: FabricStatus): HealthPayload {
   const checks: HealthCheck[] = [
     {
       name: "contract",
@@ -33,6 +34,8 @@ export function healthPayload(fabric: FabricStatus): HealthPayload {
       detail: "@pfc/scoring loaded, device scoring agrees with the browser",
     },
     { name: "fabric", ...fabric },
+    /* Both stores, because either can be down on its own (AD-4). */
+    { name: "configStore", ...configStore },
   ];
   return {
     status: checks.every((c) => c.ok) ? "ok" : "degraded",
@@ -43,7 +46,9 @@ export function healthPayload(fabric: FabricStatus): HealthPayload {
 }
 
 export async function health(): Promise<HttpResponseInit> {
-  const payload = healthPayload(await checkFabric());
+  /* Together: one slow store should not add its latency to the other. */
+  const [fabric, configStore] = await Promise.all([checkFabric(), checkConfigStore()]);
+  const payload = healthPayload(fabric, configStore);
   return {
     status: payload.status === "ok" ? 200 : 503,
     jsonBody: payload,

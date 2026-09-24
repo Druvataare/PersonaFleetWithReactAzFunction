@@ -63,7 +63,9 @@ const tokens = (expiresIn = 3_600_000): TokenSource => ({
 const schema = z.object({ id: z.string(), n: z.number() });
 const transient = Object.assign(new Error("socket closed"), { code: "ESOCKET" });
 
-beforeEach(resetPool);
+/* Called, not passed: beforeEach hands its callback a test-context object,
+   which resetPool would read as the pool to drop. */
+beforeEach(() => resetPool());
 afterEach(() => vi.useRealTimers());
 
 describe("configuration", () => {

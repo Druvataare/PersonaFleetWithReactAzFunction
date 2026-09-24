@@ -4,6 +4,8 @@
     "FUNCTIONS_WORKER_RUNTIME": "node",
     "AzureWebJobsStorage": "",
     "FabricSqlEndpoint": "xxxxxxxx.datawarehouse.fabric.microsoft.com",
-    "FabricSqlDatabase": "Persona_EPInsight_Lakehouse_Dev"
+    "FabricSqlDatabase": "Persona_EPInsight_Lakehouse_Dev",
+    "ConfigSqlEndpoint": "xxxxxxxx-xxxxxxxx.database.fabric.microsoft.com",
+    "ConfigSqlDatabase": "Persona_Config_Dev-00000000-0000-0000-0000-000000000000"
   }
 }

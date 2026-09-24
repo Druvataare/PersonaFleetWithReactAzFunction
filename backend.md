@@ -819,11 +819,17 @@ Separately, the build output moved from **ESM to CommonJS** (`dist/index.js`, no
 
 **What the checks proved, rather than assumed.** Block 4 inserted a row whose weights total 99 and the database refused it — `CK_persona_policy_weights_total` fired, so the invariant is enforced rather than merely intended. Block 6, the step's test checkpoint, returned all six personas with no NULL on either side: every `persona_dimpersona` key has a `persona_policy` row and no baseline exists for a persona that does not. The three-part name `Persona_Config_Dev.dbo.persona_policy` resolves from the lakehouse SQL analytics endpoint, so the two stores can be compared despite living in different engines.
 
-**The grant went the way step 4's should have.** We own `Persona_Config_Dev`, so Share was available rather than greyed out, and the whole sequence — share connect-only, then `GRANT` — took one sitting instead of waiting on someone else. Worth repeating for anything created from here. The check returned exactly eleven rows: `CONNECT`, `SELECT` on `persona_policy`, and `SELECT`/`INSERT`/`UPDATE` on each of the three writeback tables, with no `DELETE` and no object outside that list. `GRANT` created the principal automatically here too, so no `CREATE USER` was needed.
+**Sharing needs a workspace role, not ownership — corrected 24 Sep 2026.** An earlier version of this entry claimed that owning `Persona_Config_Dev` made Share available. It did not: the workspace `...` menu for the SQL database offered Open, Settings, lineage and Restore, but no Share and no Manage permissions, exactly as on the lakehouse. [Authorization in SQL database](https://learn.microsoft.com/fabric/database/sql/authorization#fabric-access-controls) gives the reason — of the workspace roles, only **Admin** and **Member** carry the **Share** item permission; **Contributor** can create items, write to them, and still not share them. Creating the database was therefore worth nothing for this purpose, and the lesson from step 4 was mis-drawn.
+
+The grant dialog was reached instead through the database editor: **Security → Manage SQL security → db_datareader → Manage access**, which offers **Share database** (the `db_datareader` step is only how one navigates there; the identity is not put in that role). Additional permissions left unticked, as before — [the docs](https://learn.microsoft.com/fabric/database/sql/share-sql-manage-permission) confirm that grants the Read item permission alone, so the recipient "won't be able to query any table or view" and our ten `GRANT`s remain the only thing that decides access.
+
+**The durable fix is a workspace role.** Three steps have now been blocked on the same permission. Being made **Member** would have saved step 4, step 5 and this one, and step 9's writeback will want it again.
+
+The grants check returned exactly eleven rows: `CONNECT`, `SELECT` on `persona_policy`, and `SELECT`/`INSERT`/`UPDATE` on each of the three writeback tables, with no `DELETE` and no object outside that list. `GRANT` created the principal automatically here too, so no `CREATE USER` was needed.
 
 **A side benefit: step 4's grants were re-verified** with the corrected check query, which now names each object. The lakehouse returns `CONNECT` plus exactly the ten `persona_vw_api_v1_*` views and nothing else — no base tables, no blanket `ReadData`. AD-3 holds in fact, not just in design.
 
-**The store is `Persona_Config_Dev`**, a SQL database item in the `Workplace as a Code - Dev` workspace, created and owned by us. That ownership was deliberate: step 4 lost time because both lakehouse items belong to someone else and the Share button is greyed out for anyone without workspace Admin or Member. It needs the same two things step 4 needed — the identity added with **connect-only** (no additional permissions ticked), then explicit `GRANT`s — but with writes this time, since AD-5's writeback lands here.
+**The store is `Persona_Config_Dev`**, a SQL database item in the `Workplace as a Code - Dev` workspace, created by us. Creating it ourselves was meant to avoid step 4's sharing problem; it did not, for the reason recorded below. It needs the same two things step 4 needed — the identity added with **connect-only** (no additional permissions ticked), then explicit `GRANT`s — but with writes this time, since AD-5's writeback lands here.
 
 **Invariants are constraints, not conventions.** Unlike the SQL analytics endpoint's narrow surface, a Fabric SQL database is full T-SQL, so the step's test checkpoint is enforced by the schema rather than only checked after the fact:
 
@@ -856,6 +862,33 @@ Separately, the build output moved from **ESM to CommonJS** (`dist/index.js`, no
 ---
 
 ## Step 6 — Reference endpoints
+
+**Status:** Built and tested, 24 Sep 2026 — `apps/api/src/reference/` and `apps/api/src/http.ts`. Not yet proved against the deployed app: that needs two new app settings and a browser check (below).
+
+**One pool per database, not one per process.** `/api/baselines` reads the configuration store while `/api/personas` and `/api/catalog` read the lakehouse, and step 7 onwards will read both in a single request. They are separate Fabric items on separate servers with separate tokens, so `pool.ts` now keys its pools by server and database rather than holding one. `resetPool()` takes the connection to drop, so a transient fault on one store no longer tears down the other's pool — and with no argument it still drops everything, which is what tests want.
+
+**Two new settings:** `ConfigSqlEndpoint` and `ConfigSqlDatabase`, following the same PascalCase naming the portal forced on the Fabric pair. The configuration store gets a shorter default query timeout, 8s against the lakehouse's 20s: it is transactional and every query here reads a handful of rows, so a slow answer means something is wrong rather than merely cold.
+
+**Step 4's unmet checkpoint is now met.** `http.ts` wraps every reader: a failure becomes a JSON `ApiError` carrying the host's `invocationId` as a correlation id, with the whole error — cause chain included — going to the log and nothing about the schema going to the caller. A test asserts a thrown message mentioning a table name never reaches the response body.
+
+**Three grains, three queries, run together.** `/api/catalog` reads persona, persona x app and category separately rather than as one join that would repeat every persona row once per app and leave the mapper to undo it. Every persona gets an `apps` entry even with none in the catalogue, so the Switch page renders an empty list rather than reading `undefined`.
+
+**Two real bugs the tests caught**, both worth recording because neither would have failed loudly in production:
+
+- `readBaselines` called `readConfigStore()` eagerly while spreading caller-supplied deps, so it threw when the settings were absent even for a caller that had supplied its own connection. Now `deps.config ?? readConfigStore()`, which short-circuits.
+- `fabric.test.ts` had `beforeEach(resetPool)`. Vitest passes its callback a test-context object, which the newly-optional parameter read as the pool to drop — so it computed a key of `undefined/undefined` and cleared nothing, and eight existing tests failed the moment the signature changed. The same trap as `map(parseInt)`: adding an optional parameter changes how a function behaves as a callback. Now `beforeEach(() => resetPool())`.
+
+**The config store's database name carries a GUID, and the lakehouse's does not.** Take both settings from the database's **Connection strings** panel rather than typing the item name: `Data Source` minus its `,1433` is `ConfigSqlEndpoint`, and `Initial Catalog` — `Persona_Config_Dev-08171fb2-...`, suffixed with the item's id — is `ConfigSqlDatabase`. A Fabric SQL database names its catalog that way; a lakehouse SQL analytics endpoint does not, which is why `FabricSqlDatabase` is the plain `Persona_EPInsight_Lakehouse_Dev`. Assuming the two behave alike produces a login failure that reads like a permissions problem.
+
+**The written test checkpoint cannot be met at step 6, and that is a flaw in the plan rather than in the build.** "With `VITE_USE_MOCKS=false` the Personas page shows six rings with real headcounts" assumed the page needs only reference data. It does not: `useFleetModel` composes `usePersonas`, `useBaselines`, `useDevices`, `useMigrations` and `useExceptions`, so the page cannot render until `/api/fleet/devices` (step 7), `/api/change/migrations` and `/api/change/exceptions` (step 9) exist too. Turning the flag off now would take the app from working-on-mocks to broken.
+
+`apps/web/.env` is tracked in git and still reads `VITE_USE_MOCKS=true` with the note "set to false once the Azure Functions backend is linked". That moment is the end of step 9, not here. Step 6 is verified instead by the three endpoints returning contract-shaped JSON through the Static Web App, which is the part that is genuinely this step's work.
+
+**All three endpoints confirmed live through the Static Web App (24 Sep 2026).** `/api/personas` returns the six personas with the discovery headcounts (KW 1542, RETAIL 1115, CC 812, FIELD 780, DEV 546, EXEC 205); `/api/baselines` returns the seeded defaults and weights from `Persona_Config_Dev`, proving the second pool, the GUID-suffixed catalog name and the grants all work; `/api/catalog` returns apps, tasks, onboarding and incident categories.
+
+**`/api/health` was reporting `ok` while `/api/baselines` returned 500s**, because it only ever checked the lakehouse. With two stores that can fail separately (AD-4), a health check that can be green while an endpoint is down is worse than none — it sends you to the wrong place, and this one cost a portal dig that the endpoint should have answered. `checkConfigStore` now runs beside `checkFabric`, concurrently so neither adds its latency to the other. It counts `persona_policy` rather than selecting 1, because connected-but-empty is a real state — schema applied, seed never run — in which every score in the portal would be missing its baseline.
+
+**Outstanding: `catalogItems` is empty.** The `req` half of `persona_vw_api_v1_ticket_category` reads `persona_factticket WHERE Kind = 'req'` and returns nothing, so the Change page's catalogue would be empty for the same reason. This is a step 2 gold-build gap rather than an endpoint fault; confirm with `SELECT Kind, COUNT(*) FROM dbo.persona_factticket GROUP BY Kind`.
 
 **Goal:** the small, cacheable payloads. First real data in the browser.
 

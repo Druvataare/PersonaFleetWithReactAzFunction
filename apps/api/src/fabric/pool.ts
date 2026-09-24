@@ -49,34 +49,54 @@ export const defaultDriver: SqlDriver = {
   },
 };
 
-let current: { pool: SqlPool; expiresAt: number; connecting?: never } | null = null;
-let pending: Promise<SqlPool> | null = null;
+/* One pool per database, not one per process: the API reads the lakehouse and
+   the configuration store in the same request (AD-4), and they are different
+   servers with different tokens. Keyed by server and database so adding a
+   third store needs no change here. */
+const keyOf = (config: FabricConfig) => `${config.server}/${config.database}`;
 
-/** The pool for this process, reconnecting when the token is close to expiry. */
+const live = new Map<string, { pool: SqlPool; expiresAt: number }>();
+const pending = new Map<string, Promise<SqlPool>>();
+
+/** The pool for this database, reconnecting when the token is close to expiry. */
 export async function getPool(
   config: FabricConfig = readConfig(),
   driver: SqlDriver = defaultDriver,
   tokens: TokenSource = defaultTokenSource,
 ): Promise<SqlPool> {
-  if (current && Date.now() < current.expiresAt - REFRESH_MARGIN_MS) return current.pool;
+  const key = keyOf(config);
+  const existing = live.get(key);
+  if (existing && Date.now() < existing.expiresAt - REFRESH_MARGIN_MS) return existing.pool;
+
   /* Several requests can arrive during a cold start; they share one connect. */
-  pending ??= (async () => {
-    const previous = current;
+  const inFlight = pending.get(key);
+  if (inFlight) return inFlight;
+
+  const connect = (async () => {
+    const previous = live.get(key);
     const { token, expiresOnTimestamp } = await tokens.getToken();
     const pool = await driver.connect(config, token);
-    current = { pool, expiresAt: expiresOnTimestamp };
+    live.set(key, { pool, expiresAt: expiresOnTimestamp });
     if (previous) await previous.pool.close().catch(() => {});
     return pool;
   })().finally(() => {
-    pending = null;
+    pending.delete(key);
   });
-  return pending;
+  pending.set(key, connect);
+  return connect;
 }
 
-/** Drops the pool; used when a connection fails and by tests. */
-export async function resetPool(): Promise<void> {
-  const previous = current;
-  current = null;
-  pending = null;
-  if (previous) await previous.pool.close().catch(() => {});
+/** Drops pools; used when a connection fails and by tests. With no argument,
+    drops every pool — a failed query should only reset the database it was
+    using, so callers that know which one pass it. */
+export async function resetPool(config?: FabricConfig): Promise<void> {
+  const keys = config ? [keyOf(config)] : [...live.keys()];
+  const closing: Array<Promise<void>> = [];
+  for (const key of keys) {
+    const previous = live.get(key);
+    live.delete(key);
+    pending.delete(key);
+    if (previous) closing.push(previous.pool.close().catch(() => {}));
+  }
+  await Promise.all(closing);
 }

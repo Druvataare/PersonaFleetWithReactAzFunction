@@ -92,7 +92,7 @@ export async function query<T>(options: QueryOptions<T>, deps: QueryDeps = {}): 
       if (attempt === backoffMs.length || !isTransient(error)) break;
       log(`fabric ${options.name}: ${describe(error)} — retrying`);
       /* A dropped connection leaves the pool unusable; the next attempt rebuilds it. */
-      await resetPool();
+      await resetPool(config);
       await wait(backoffMs[attempt]);
     }
   }
