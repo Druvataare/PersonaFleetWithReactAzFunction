@@ -4,3 +4,4 @@ import "./health.ts";
 import "./reference/personas.ts";
 import "./reference/baselines.ts";
 import "./reference/catalog.ts";
+import "./fleet/devices.ts";

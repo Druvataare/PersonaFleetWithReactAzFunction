@@ -888,7 +888,11 @@ The grants check returned exactly eleven rows: `CONNECT`, `SELECT` on `persona_p
 
 **`/api/health` was reporting `ok` while `/api/baselines` returned 500s**, because it only ever checked the lakehouse. With two stores that can fail separately (AD-4), a health check that can be green while an endpoint is down is worse than none — it sends you to the wrong place, and this one cost a portal dig that the endpoint should have answered. `checkConfigStore` now runs beside `checkFabric`, concurrently so neither adds its latency to the other. It counts `persona_policy` rather than selecting 1, because connected-but-empty is a real state — schema applied, seed never run — in which every score in the portal would be missing its baseline.
 
-**Outstanding: `catalogItems` is empty.** The `req` half of `persona_vw_api_v1_ticket_category` reads `persona_factticket WHERE Kind = 'req'` and returns nothing, so the Change page's catalogue would be empty for the same reason. This is a step 2 gold-build gap rather than an endpoint fault; confirm with `SELECT Kind, COUNT(*) FROM dbo.persona_factticket GROUP BY Kind`.
+**`catalogItems` is empty, and that is expected here.** `SELECT Kind, COUNT(*) FROM dbo.persona_factticket GROUP BY Kind` returns one row: `inc`, 3,439. There are no `req` rows yet, so the `req` half of `persona_vw_api_v1_ticket_category` — and with it `catalogItems`, and the Tickets page's Requests tab — has nothing to show. This is deferred work rather than a fault: AD-10 maps `kind=req` to `tbl_brz_intune_app_deployment` and defers confirming it to step 8, which open question 14 still carries. The view's `req` branch is already written and will fill when step 8 builds that side. (An earlier note here called it a step 2 gold-build gap; that was wrong.)
+
+**The source exists and is large: `tbl_brz_intune_app_deployment` holds 3,600,000 rows** (24 Sep 2026) — about 720 per device across the 5,000-device fleet, so it is every app assignment and probably a snapshot per day, not a list of requests. Question 14's existence half is settled; its harder half is not. Three and a half million rows cannot become three and a half million tickets, and the incident side is only 3,439, so a naive one-row-per-assignment mapping would drown the Tickets page and make every per-persona request figure meaningless.
+
+Step 8 therefore needs a stated definition of what one request *is* before it writes any SQL — most likely a particular assignment intent (a user-available install is a request in a way a mandatory push is not) plus a terminal install state, folded per device and app. That is the same shape of judgement as folding repeat remediation failures into one episode (AD-10), and it should be recorded as a derivation with its reasoning, not chosen for convenience.
 
 **Goal:** the small, cacheable payloads. First real data in the browser.
 
@@ -905,6 +909,46 @@ The grants check returned exactly eleven rows: `CONNECT`, `SELECT` on `persona_p
 ---
 
 ## Step 7 — Fleet devices endpoint
+
+**Ship it whole, then measure — decided 24 Sep 2026.** This is the first endpoint whose size is a real question: `/api/fleet/devices` returns `Record<PersonaId, Device[]>`, every device in the fleet in one response, each carrying its tickets and installed apps. That shape came from the mock, where the data was generated in the browser and size cost nothing.
+
+We build it exactly as the contract specifies, then record the actual payload and response time, and only then decide whether it needs anything. Three reasons, in order of weight:
+
+1. **Paginating is not a local change.** The contract is frozen (AD-11) and `useFleetModel` composes the whole fleet client-side to compute scores, so a paged endpoint means changing the contract, the model and every page that reads it. That is a far larger change than this step, and it should be justified by a measurement rather than an intuition.
+2. **Neither of us has seen the number.** Optimising against an imagined payload risks solving a problem that does not exist while missing the one that does — a slow query, say, rather than a large body. The measurement tells us which.
+3. **There is already a place for it.** Step 10 is caching and performance. If the payload is genuinely too big, that is where it gets solved, with the rest of the performance story in view rather than piecemeal here.
+
+The risk of being wrong is small and recoverable: we will have a number, and the work to page it is the same work whether we do it now or after measuring. The risk of guessing now is a contract change we cannot easily undo.
+
+**Built 24 Sep 2026** — `apps/api/src/fleet/devices.ts`. Three views read together (device, device_ticket, device_app) and folded by device then by persona, for the same reason `/api/catalog` uses three queries: a SQL join across the three grains would repeat each device row once per ticket per app and leave the mapper to undo the multiplication.
+
+**Missing telemetry is neutralised, not defaulted to zero.** The frozen contract has no way to say "unknown" — every measure on `Device` is a plain `number`, because the mock always generated one — so a null has to become *some* number, and the only question is which lie does least harm. Letting a null fall through `scoreDevice`'s arithmetic yields **zero**: a device would be recorded as holding no disk space and having no battery health purely because nobody measured it, dragging its persona's health down for absent evidence. Instead each missing measure becomes the value that scores exactly 100 against *any* baseline, so no read of the configuration store is needed to neutralise it:
+
+| Measure | Missing becomes | Why that value |
+| ------------ | --------------- | ------------------------------------------ |
+| `freePct`    | 100             | at or above baseline scores 100             |
+| `batteryPct` | 100             | at or above baseline scores 100             |
+| `bootSec`    | 0               | at or below baseline scores 100             |
+| `crashes`    | 0               | at or below baseline scores 100             |
+
+A **measured** zero is left alone: a device genuinely at 0% free disk is in trouble and must score as such, and a test asserts the distinction. For battery this is not even a derivation — a desktop has no battery, so it cannot have a battery problem.
+
+**Coverage is currently 100%, so the rule has never fired.** Of the 5,000 devices in the latest snapshot, none is missing boot time, crash count, free space or battery health, and `MissingMeasures` is empty on every row (24 Sep 2026). That is worth stating plainly rather than leaving the table above to imply otherwise: the substitution is anticipated handling for columns the gold build documents as nullable ("null when no battery — never zero"), not behaviour this fleet has exercised. It is also a reminder that this data is synthetic (AD-14); a real Intune extract would not be this complete, and the first one that is not will be the first real test of this rule.
+
+**Measured, 24 Sep 2026: 295 kB, 11.39 s cold, 1.86 s warm.** The decision above said build it whole and measure, and the measurement inverted the expected answer. The payload is a non-issue — 295 kB over the wire for the entire fleet, well inside any budget, so paging it would have been work spent on the wrong problem and a contract change for nothing. What is slow is the cold path: 11.39 s on the first request against 1.86 s warm, so roughly nine seconds is Flex Consumption starting a worker plus the first connection to an analytics engine, not the queries. `/api/health` showed the same shape earlier, reporting `connected in 6012ms` on its first hit. That belongs to step 10 with the rest of the performance story, and the lever is keeping something warm rather than sending less.
+
+**Every device carries every persona's applications, and that is the data, not the endpoint.** `persona_factdeviceapp` is a complete cross product: each persona's devices appear against every `AppPersonaKey` at their full headcount — all 812 Contact Centre devices hold the Engineering catalogue, all 546 Engineering devices hold the Retail catalogue, and so on, about 95,000 rows for 5,000 devices and 19 catalogue applications. The table was designed to record cross-persona apps on purpose, since a Contact Centre user holding Visual Studio Code is exactly the anomaly the Switch and Change pages exist to surface. The problem is that when *everyone* holds *everything*, there is no anomaly left to surface: the Switch page's "applications gained and lost when moving persona" resolves to nothing gained and nothing lost for every move.
+
+**Settled: the source is uniform, the build is faithful (24 Sep 2026).** `tbl_brz_systeminfo_software` holds 7,800,000 rows across 5,000 devices and 26 distinct application names — and grouping by device returns a single row, `26 apps on 5,000 devices`. Every device carries an identical inventory; there is no per-device variation to lose. The 7.8M rows are roughly sixty daily snapshots of the same 26 names per device, which the gold build correctly reduces with `DISTINCT`. AD-13's catalogue filter is also working as designed — 26 names in bronze become the 19 that belong to a persona catalogue. So `persona_factdeviceapp` is not a step 2 bug, and there is nothing to fix in it.
+
+This is an **AD-14 limitation to label, not to engineer around.** Synthesising per-device variation would be inventing data, exactly what AD-10 refuses to do for priority and SLA, and it would be worse here because the invented differences would drive a page whose whole purpose is to show real ones.
+
+Two consequences to carry into steps 8 and 9, both of which are about how the front end tells the truth rather than about the API:
+
+1. **The Switch page's application comparison is empty for every move.** "What you gain and lose when moving persona" resolves to nothing gained and nothing lost, because the target persona's apps are already installed. The page needs to say that this estate shows no per-role software variation, rather than render a blank list that reads like a bug.
+2. **Every device holds applications outside its own catalogue, identically.** A Contact Centre device carries the fifteen catalogue applications belonging to other personas, and so does every other device. The signal is not absent but saturated: flagging unauthorised or off-catalogue software would flag 100% of the fleet the same way, which is no more useful than flagging none of it. Whatever step 9 does with `persona_app_exception` should not present that as a finding.
+
+It is also most of the payload: 19 identical strings on each of 5,000 devices is the bulk of the 295 kB measured above. Worth remembering if step 10 ever needs to shrink the response — the redundancy is real, even though the data is honest.
 
 **Goal:** the largest and most valuable payload — real devices, graded against real baselines.
 
