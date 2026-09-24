@@ -1001,7 +1001,15 @@ It is also most of the payload: 19 identical strings on each of 5,000 devices is
 
 ## Step 9 — Change endpoints and writeback
 
-**Status:** Built and tested, 24 Sep 2026 — `apps/api/src/change/`. **Two SQL steps must run before it works** (below).
+**Status:** Done, 24 Sep 2026. Verified end to end against the deployed API: the same POST sent twice returned **201 with a byte-identical body both times** and left **one** row in the change log (`CC -> DEV`, device `20b45e72-…`, `User 00002`, 12:24). That single result exercises the whole chain — the client principal reached the backend, the re-run gold view resolved `userId`, the write landed in `Persona_Config_Dev`, the unique index collapsed the duplicate, the second caller received the stored row rather than a new one, and AD-5's read-after-write holds because the change log showed it at once.
+
+`POST /api/devices/{id}/provisioning-requests` was checked the same way and returned **201 with `REQ0000001` both times**. That number is the evidence rather than the response shape: it comes from an `IDENTITY`, so a second row could only read `REQ0000002`. Two identical numbers mean one row.
+
+**The first attempt at that test passed for the wrong reason, and it is worth keeping.** Run from the app's own page, the console script never reached the API: Mock Service Worker is registered for that origin and intercepts `fetch()`, so `POST /api/persona-changes` went to the mock. It looked like a genuine result — a 201, then a 400, and one row in the log — and every part of that was the mock behaving correctly, because the mock really does move the device between personas in memory. The tell was the device id: `KW-0001` with host `KW-WKS-4433`, where real fleet devices have GUIDs and `DWPLABLP…` hostnames.
+
+Two things follow. Browser-console testing of a mocked app tests the mock unless the service worker is bypassed (DevTools → Application → Service Workers → **Bypass for network**) — and the earlier GET checks were only genuine because a document navigation is not intercepted the way a page's `fetch()` is. And more generally: a test that passes is not evidence until you can say which code it ran. This one produced a plausible failure, which is more dangerous than an implausible one, because the 400 had a convincing explanation ready.
+
+**Two SQL steps must run before it works** (below).
 
 **Run these in Fabric first.** [sql/config/05d_persona_change_audit_columns.sql](sql/config/05d_persona_change_audit_columns.sql) in `Persona_Config_Dev`, and [sql/gold/persona_vw_api_v1.sql](sql/gold/persona_vw_api_v1.sql) again in the lakehouse endpoint — it is `CREATE OR ALTER` throughout, so re-running it is safe.
 
