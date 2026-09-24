@@ -68,6 +68,11 @@ SELECT
     DeviceId         AS id,
     PersonaKey       AS personaId,
     DeviceName       AS host,
+    /* The real user identity, for the audit record a persona change writes
+       (step 9). Not part of the Device contract, so /api/fleet/devices does
+       not select it — display names change and devices leave the fleet, but
+       an audit row has to stay resolvable. */
+    UserId           AS userId,
     UserDisplayName  AS [user],
     Email            AS email,
     Site             AS site,

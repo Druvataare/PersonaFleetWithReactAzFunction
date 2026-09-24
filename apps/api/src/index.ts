@@ -7,3 +7,5 @@ import "./reference/catalog.ts";
 import "./fleet/devices.ts";
 import "./aggregate/mapping.ts";
 import "./aggregate/tickets.ts";
+import "./change/reads.ts";
+import "./change/writes.ts";

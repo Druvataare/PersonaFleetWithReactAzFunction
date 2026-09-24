@@ -1001,6 +1001,24 @@ It is also most of the payload: 19 identical strings on each of 5,000 devices is
 
 ## Step 9 — Change endpoints and writeback
 
+**Status:** Built and tested, 24 Sep 2026 — `apps/api/src/change/`. **Two SQL steps must run before it works** (below).
+
+**Run these in Fabric first.** [sql/config/05d_persona_change_audit_columns.sql](sql/config/05d_persona_change_audit_columns.sql) in `Persona_Config_Dev`, and [sql/gold/persona_vw_api_v1.sql](sql/gold/persona_vw_api_v1.sql) again in the lakehouse endpoint — it is `CREATE OR ALTER` throughout, so re-running it is safe.
+
+**Why each was needed.** The device view exposed the user's *display name* but not their id, and a persona change has to record who moved, not what they were called. And `persona_change` had nowhere to keep that name: the contract's `PersonaChange` carries `user`, the name lives in the lakehouse and the record lives in the SQL database, so no engine can join them. Storing it at write time is the right answer regardless of that — an audit record should say what was true when it was written, and resolving the name later would show whoever holds the device today and nothing at all once the device leaves the fleet.
+
+**The caller comes from the request, never the body.** Static Web Apps forwards the signed-in user as base64 JSON in `x-ms-client-principal`. [Microsoft's own note](https://learn.microsoft.com/azure/static-web-apps/user-information) is why the check exists: "the API does receive user-identifiable information, [but] it does not perform its own checks if the user is authenticated". `staticwebapp.config.json` guards the pages; nothing guards these endpoints but this code, so both writes reject a request with no principal rather than recording an anonymous author. Trusting a header is only sound because nothing can reach the Function App except through the Static Web App — the "Azure Static Web Apps (Linked)" identity provider added at linking is what makes that true, and AD-20 already noted the Functions docs warn against deleting it. Remove it and this becomes forgeable.
+
+**Idempotency is honestly de-duplication over a window, and the difference matters.** The contract is frozen and neither POST carries a key, so one has to be derived. Content alone will not do: moving a user to Engineering, away, and back is three legitimate changes, and the first and third hash identically — the third would silently return the first record instead of being recorded. Adding a one-minute bucket separates them while still collapsing what this actually protects against, a double submit arriving within seconds. Two identical requests either side of a bucket boundary will both be recorded; that is the accepted cost, stated rather than glossed. An `Idempotency-Key` header is honoured when supplied, and requiring one is the right contract revision when the contract next opens.
+
+The write itself is an insert wrapped in `BEGIN TRY` with duplicate-key errors (2601, 2627) swallowed, followed by a read of the row that key now identifies. The unique index decides the race, and **the response is the stored row rather than the one we meant to write** — which is the whole point, since the second caller must get the first caller's record. A test asserts exactly that.
+
+**Migrations lag and the change log does not.** `/api/change/migrations` reads the lakehouse, so a change made a moment ago is not in it until the next snapshot; `/api/persona-changes` reads the SQL database and shows it at once. That is AD-5's stated consequence rather than a defect, but the Switch page invalidates both on success and only one will move. Worth watching at the cutover: an unchanged migration chart next to a new change-log row could read as a bug.
+
+**`EUC-Provisioning` is a stated constant, not a measurement.** There is no ITSM and no routing table in this estate, so where a provisioning request goes had to be chosen. Named in one place and called out here for the same reason AD-10 records derived priority: a reader should never have to guess which numbers were measured.
+
+**Deferred by decision (24 Sep 2026): the `req` gold build.** The Requests tab stays empty until `persona_factticket` gains `req` rows, which needs the definition question answered first — what counts as one request out of 3,600,000 app-deployment rows. Parked deliberately rather than forgotten; the endpoint already handles the kind and will fill when the data does.
+
 **Goal:** the portal stops being read-only.
 
 **What we do**
