@@ -1,4 +1,5 @@
 /* Layout primitives matching the wireframe's panel, statbox, chip, section and heading styles. */
+import { useEffect, useState } from "react";
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
 import { toneColor, type ToneOrAccent } from "../lib/format.ts";
 import { AnimNum } from "./AnimNum.tsx";
@@ -105,10 +106,32 @@ export function PageHead({ step, title, sub, tools }: PageHeadProps) {
   );
 }
 
+/* A wait long enough to need explaining. The API runs on Flex Consumption,
+   which scales to zero, so the first request after an idle period pays for a
+   worker starting and for the first connection to an analytics engine --
+   measured at 11.4s cold against 1.86s warm. An always-ready instance makes
+   that rare, but scale-in can still happen, and a spinner that sits there for
+   eleven seconds with nothing to say is indistinguishable from one that is
+   broken. The note appears only when the wait is already abnormal, so an
+   ordinary load never shows it. */
+const SLOW_MS = 3000;
+
 export function Loading({ label = "Loading…" }: { label?: string }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSlow(true), SLOW_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <div className="state-msg" role="status">
       {label}
+      {slow && (
+        <div style={{ fontSize: 12, color: "var(--faint)", paddingTop: 8, maxWidth: "52ch" }}>
+          The API is waking up. The first request after a quiet period takes a few seconds; later
+          ones are quick.
+        </div>
+      )}
     </div>
   );
 }

@@ -1086,6 +1086,22 @@ Still to do, deliberately after this has shipped and had time to run: delete `ap
 - Delete `apps/web/public/mockServiceWorker.js` and its route rule in `staticwebapp.config.json`, once the unregistration above has shipped and had time to run — in that order, so browsers can still reach the script while unregistering.
 - The Requests tab shows no data, for reasons already recorded, and now says so explicitly rather than rendering a grid of zeros. The Switch page needs nothing: its application comparison works (see step 7).
 
+**Cold start addressed on both fronts, 29 Sep 2026.** The 11.4s first load measured in step 7 became user-facing at the cutover. It is two costs, not one:
+
+| Component | Measured |
+| ------------------------------------------------ | ------------------------------ |
+| Functions worker start (Flex Consumption scales to zero) | ~5s |
+| First Fabric connection: token, TLS, analytics engine | ~6s (`connected in 6012ms`) |
+| Warm | 1.86s |
+
+Sending less would not have helped — 295 kB was never the problem — so the fix is keeping an instance alive, since a warm one has both started its worker and opened its pool.
+
+**One always-ready instance** is now configured: `az functionapp scale config always-ready set -n func-personalfleet-api -g Shashi-RG --settings http=1`. This is Flex Consumption's own feature for the problem rather than a workaround such as timer-trigger pings, and it is billed continuously whether or not anyone visits — a deliberate cost, agreed rather than assumed.
+
+**What it does not fix, stated rather than discovered later:** an always-ready instance that has never served a request has not connected to Fabric, so a genuinely first request may still pay the ~6s connect. If measurement shows that, the next lever is something that connects proactively — a timer trigger calling the freshness read would keep the pool open — and that should be driven by a measurement rather than added on spec.
+
+**The spinner now says what it is waiting for.** After three seconds `Loading` explains that the API is waking and that later requests are quick. Only after three seconds, so an ordinary load never shows it. Eleven seconds of silent spinner is indistinguishable from a broken page, and scale-in means a cold instance remains possible even with always-ready configured.
+
 **Goal:** the remaining production concerns.
 
 **Goal:** make it fast enough and safe enough to put in front of the business.

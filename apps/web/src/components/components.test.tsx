@@ -1,11 +1,11 @@
 import { act, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useUi } from "../store/ui.ts";
 import { formatNum, toneColor } from "../lib/format.ts";
 import { AnimNum } from "./AnimNum.tsx";
 import { Avatar } from "./Avatar.tsx";
 import { Icon } from "./Icon.tsx";
-import { Kpi } from "./ui.tsx";
+import { Kpi, Loading } from "./ui.tsx";
 
 describe("Avatar", () => {
   it.each(["DEV", "KW", "CC", "FIELD", "EXEC", "DS", "CRE"])("draws head, body and a %s prop", (pid) => {
@@ -60,5 +60,25 @@ describe("Kpi", () => {
     expect(group).toHaveTextContent("42%");
     expect(group.querySelector(".stat-v")).toHaveStyle({ color: "var(--bad)" });
     expect(toneColor(undefined)).toBe("var(--text)");
+  });
+});
+
+describe("Loading", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("says nothing extra while the wait is ordinary", () => {
+    vi.useFakeTimers();
+    render(<Loading />);
+    act(() => void vi.advanceTimersByTime(2000));
+    expect(screen.queryByText(/waking up/i)).not.toBeInTheDocument();
+  });
+
+  /* Eleven seconds of silent spinner is indistinguishable from a broken page,
+     and a cold Flex Consumption worker can take that long. */
+  it("explains the wait once it is long enough to need explaining", () => {
+    vi.useFakeTimers();
+    render(<Loading />);
+    act(() => void vi.advanceTimersByTime(3500));
+    expect(screen.getByText(/the api is waking up/i)).toBeInTheDocument();
   });
 });
