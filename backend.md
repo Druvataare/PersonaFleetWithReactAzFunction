@@ -1044,6 +1044,16 @@ The write itself is an insert wrapped in `BEGIN TRY` with duplicate-key errors (
 
 ## Step 10 — Auth, caching and performance
 
+**Read authentication closed, 24 Sep 2026.** Three findings, all now fixed.
+
+1. **Reads were gated only by route fall-through.** `/*` with `allowedRoles: ["authenticated"]` is the last rule in `staticwebapp.config.json`, and `/api/*` matched it, so anonymous callers were already rejected at the edge. Nothing declared that, though: a route added above `/*` matching `/api/*` would have opened the entire API silently, and no test or comment would have caught it. There is now an explicit `/api/*` rule stating the intent.
+
+2. **The API did not authenticate reads, and the asymmetry was the real hole.** The only thing preventing a direct call to the Function App is the "Azure Static Web Apps (Linked)" identity provider — the one the Functions docs warn against deleting, and the one we already had to re-add once while debugging step 6. Losing it would have served the whole fleet, including user display names and email addresses, to anyone who resolved the hostname, while the writes carried on refusing because they check the principal themselves. `readerHandler` now calls `callerFrom` before running any reader, so all eleven reads refuse an unauthenticated caller in their own right. The cost is that `func start` and `curl` now need a fake `x-ms-client-principal` header; that is documented rather than worked around, because a "skip auth locally" switch is exactly the kind of thing that escapes into production.
+
+3. **An expired session produced a cryptic failure rather than a sign-in prompt.** `responseOverrides` rewrites a 401 into a 302 at `/.auth/login/aad`, which redirects cross-origin to Entra; a `fetch` follows that and rejects with a `TypeError`, because the sign-in page sends no CORS headers. `client.ts` only converted *responses* into errors, so a timed-out session surfaced as "Failed to fetch" with no way to recover — and Static Web Apps sessions expire in ordinary use, so this was reachable rather than theoretical. The client now treats both shapes the same way: on a rejected fetch or a 401 it asks `/.auth/me`, and a null `clientPrincipal` sends the user to sign in with a return URL. `/.auth/me` is the arbiter rather than inference from the failure, because it is same-origin, safe to call unauthenticated, and null exactly when the session is gone; a genuine network fault answers nothing and the original error is rethrown unchanged.
+
+**Goal:** the remaining production concerns.
+
 **Goal:** make it fast enough and safe enough to put in front of the business.
 
 **What we do**

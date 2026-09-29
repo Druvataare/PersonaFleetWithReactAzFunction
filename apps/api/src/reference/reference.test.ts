@@ -170,7 +170,24 @@ describe("catalog", () => {
 describe("readerHandler", () => {
   const context = () =>
     ({ invocationId: "abc-123", error: vi.fn() }) as unknown as InvocationContext & { error: ReturnType<typeof vi.fn> };
-  const request = {} as HttpRequest;
+  /* Every read authenticates for itself now, so a request without a client
+     principal is refused before the reader runs. */
+  const principal = Buffer.from(JSON.stringify({ userDetails: "ada@x.com", userId: "u1" })).toString("base64");
+  const request = {
+    headers: { get: (name: string) => (name.toLowerCase() === "x-ms-client-principal" ? principal : null) },
+  } as unknown as HttpRequest;
+  const anonymous = { headers: { get: () => null } } as unknown as HttpRequest;
+
+  it("refuses a caller with no client principal, without running the reader", async () => {
+    let ran = false;
+    const response = await readerHandler("personas", async () => {
+      ran = true;
+      return [];
+    })(anonymous, context());
+
+    expect(response.status).toBe(401);
+    expect(ran).toBe(false);
+  });
 
   it("returns the payload with a cache header", async () => {
     const response = await readerHandler("personas", async () => [{ id: "DEV" }])(request, context());
