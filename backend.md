@@ -945,7 +945,7 @@ This is an **AD-14 limitation to label, not to engineer around.** Synthesising p
 
 Two consequences to carry into steps 8 and 9, both of which are about how the front end tells the truth rather than about the API:
 
-1. **The Switch page's application comparison is empty for every move.** "What you gain and lose when moving persona" resolves to nothing gained and nothing lost, because the target persona's apps are already installed. The page needs to say that this estate shows no per-role software variation, rather than render a blank list that reads like a bug.
+1. **The Switch page's application comparison still works — corrected 29 Sep 2026.** An earlier version of this entry claimed it would be empty for every move. That was wrong, and checking `packages/scoring/src/switch.ts` shows why: `add` and `rem` compare the two personas' **catalogues**, which genuinely differ (Engineering has Visual Studio Code, Git and Node.js; Retail has SAP GUI, Chrome and Teams), so a move correctly lists apps gained and lost. Only `need` — target-catalogue apps not installed on the device — is always zero, because every device already carries all nineteen. That figure is accurate rather than broken: no move in this estate requires an install. It carries no signal, but it makes no false claim, so it is left alone.
 2. **Every device holds applications outside its own catalogue, identically.** A Contact Centre device carries the fifteen catalogue applications belonging to other personas, and so does every other device. The signal is not absent but saturated: flagging unauthorised or off-catalogue software would flag 100% of the fleet the same way, which is no more useful than flagging none of it. Whatever step 9 does with `persona_app_exception` should not present that as a finding.
 
 It is also most of the payload: 19 identical strings on each of 5,000 devices is the bulk of the 295 kB measured above. Worth remembering if step 10 ever needs to shrink the response — the redundancy is real, even though the data is honest.
@@ -1062,7 +1062,7 @@ What remains unverifiable by design: that `readerHandler` *rejects* an anonymous
 
 - `apps/web/.env` to `VITE_USE_MOCKS=false`, which is what actually switches the data source.
 - Delete `apps/web/public/mockServiceWorker.js` and its route rule in `staticwebapp.config.json`, once the unregistration above has shipped and had time to run — in that order, so browsers can still reach the script while unregistering.
-- The Requests tab and the Switch page's application comparison will both be empty, for reasons already recorded. Both need to say so rather than render blanks.
+- The Requests tab shows no data, for reasons already recorded, and now says so explicitly rather than rendering a grid of zeros. The Switch page needs nothing: its application comparison works (see step 7).
 
 **Goal:** the remaining production concerns.
 

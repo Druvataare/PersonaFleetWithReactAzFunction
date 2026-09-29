@@ -1,6 +1,8 @@
 /* Tickets page (03 · WHAT IT COSTS), checked against the wireframe's incidents,
    requests, persona counts and ticket ceilings. */
 import { act, screen, waitFor, within } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
+import { server } from "../../mocks/server.ts";
 import { describe, expect, it } from "vitest";
 import { tally } from "@pfc/contract";
 import { loadWireframe } from "../../mocks/data/wireframe.ts";
@@ -191,5 +193,49 @@ describe("navigation", () => {
     const worst = expected("inc").personaRows[0];
     await user.click(screen.getAllByRole("link", { name: /Investigate/ })[0]);
     expect(router.state.location.pathname).toBe(`/personas/${worst.id}`);
+  });
+});
+
+/* A kind with no data at all must say so rather than render a grid of zeros:
+   "no requests were raised" is a claim this dataset cannot make when the
+   source has never been built. */
+describe("not measured", () => {
+  const empty = {
+    kind: "req",
+    total: 0,
+    uniqueRequestors: 0,
+    open: 0,
+    slaBreached: 0,
+    byCategory: [],
+    topDepartments: [],
+    weeks: Array.from({ length: 12 }, () => 0),
+    ageByPriority: [],
+    perPersona: [],
+  };
+
+  it("says requests are not measured when the whole kind is empty", async () => {
+    server.use(http.get("*/api/tickets/summary", () => HttpResponse.json(empty)));
+    act(() => useUi.getState().set({ ticketKind: "req" }));
+    renderApp("/tickets");
+
+    expect(await screen.findByText(/not measured/i)).toBeInTheDocument();
+    expect(screen.getByText(/not the same as none having been raised/i)).toBeInTheDocument();
+    /* The usual figures must be gone, not merely zeroed. */
+    expect(screen.queryByText("Unique requestors")).not.toBeInTheDocument();
+  });
+
+  it("still shows the normal page when a filter matches nothing", async () => {
+    /* Filtered to nothing is not the same as never measured: perPersona
+       reports the whole kind, so the page renders as usual with zeros. */
+    server.use(
+      http.get("*/api/tickets/summary", () =>
+        HttpResponse.json({ ...empty, perPersona: [{ id: "KW", tickets: 12, open: 3, sla: 1 }] }),
+      ),
+    );
+    act(() => useUi.getState().set({ ticketKind: "req" }));
+    renderApp("/tickets");
+
+    expect(await screen.findByText("Unique requestors")).toBeInTheDocument();
+    expect(screen.queryByText(/not measured/i)).not.toBeInTheDocument();
   });
 });

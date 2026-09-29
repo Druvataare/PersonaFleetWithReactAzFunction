@@ -118,6 +118,36 @@ export default function TicketsPage() {
   const color = ticketCategoryColor(C, [...catalog.data.ticketCategories, ...catalog.data.catalogItems]);
   const toggleCat = (k: string) => set({ ticketCatFilter: cat === k ? null : k });
 
+  /* A kind with no data at all is an absence of measurement, not a count of
+     zero, and the difference is the whole point of this page. Rendering the
+     usual grid of zeros would tell a reader that nobody raised any requests,
+     which is a claim this dataset cannot make.
+
+     perPersona is the whole set for the kind, ignoring the persona and
+     category filters, so it is what separates "not measured" from "filtered
+     out" — a filter that matches nothing should still show the normal page.
+     Self-correcting too: the moment the data exists this branch stops
+     running, so it cannot rot into a lie. */
+  const measured = s.perPersona.reduce((a, p) => a + p.tickets, 0);
+  if (measured === 0)
+    return (
+      <>
+        {head}
+        <Panel>
+          <div className="eyebrow" style={{ marginBottom: 8 }}>
+            Not measured
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.7, maxWidth: "62ch" }}>
+            This dataset holds no {label}, which is not the same as none having been raised.{" "}
+            {inc
+              ? "Incidents are drawn from the endpoint remediation lifecycle."
+              : "Requests would be drawn from application deployment records, which this data layer does not yet build."}{" "}
+            Nothing here should be read as a measurement until that source is in place.
+          </div>
+        </Panel>
+      </>
+    );
+
   return (
     /* Like the wireframe, charts replay when the mode or a filter changes. */
     <Replay on={[kind, persona, cat]}>
