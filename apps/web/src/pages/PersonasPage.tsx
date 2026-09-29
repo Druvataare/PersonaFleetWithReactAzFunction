@@ -34,7 +34,10 @@ export default function PersonasPage() {
       <PageHead
         step="01 · WHO"
         title="Personas"
-        sub="Seven personas, every device in the fleet, and the job titles that put people into them. Everything downstream starts here."
+        /* No count in the copy: the KPI below states it, and a number written
+           into prose goes stale the moment the estate changes — as "Seven"
+           did the day this portal started reading real data. */
+        sub="Every persona, every device in the fleet, and the job titles that put people into them. Everything downstream starts here."
         tools={chips}
       />
       {error ? (

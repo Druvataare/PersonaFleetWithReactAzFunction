@@ -43,6 +43,9 @@ export function Topbar() {
   const { theme, motion, chartNames, setTheme, toggleMotion, toggleChartNames } = useUi();
   const startTour = useTour((t) => t.start);
   const mocks = import.meta.env.VITE_USE_MOCKS === "true";
+  /* Off by default. Its own flag rather than the mock one: the tour is not a
+     property of the data source, it is a feature whose script is stale. */
+  const tour = import.meta.env.VITE_SHOW_TOUR === "true";
 
   return (
     <header className="topbar">
@@ -88,14 +91,27 @@ export function Topbar() {
           >
             CHART NAMES
           </button>
-          <button
-            type="button"
-            className="toggle"
-            onClick={startTour}
-            title="Play a self-driving walkthrough of every screen — record this"
-          >
-            &#9654; TOUR
-          </button>
+          {/* The guided tour is hidden until its script is rewritten against
+              real data (29 Sep 2026). It was written for the wireframe's
+              seven invented personas: step 8 of 18 navigates to
+              /baselines/DS, which renders Not Found because Data Science does
+              not exist in this estate, and the narration names "Contact
+              Centre" and "Field Engineer" where the fleet has Call Centre and
+              Field Services. Worse, it asserts findings — "the same two
+              personas with the weakest mapping" — that are false here, since
+              every title maps at 100% confidence. A walkthrough that states
+              things the screen disproves is worse than no walkthrough, so the
+              button comes out until the script is rewritten. */}
+          {tour && (
+            <button
+              type="button"
+              className="toggle"
+              onClick={startTour}
+              title="Play a self-driving walkthrough of every screen — record this"
+            >
+              &#9654; TOUR
+            </button>
+          )}
           <label className="sr-only" htmlFor="themesel">
             Theme
           </label>

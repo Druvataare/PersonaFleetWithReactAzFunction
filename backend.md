@@ -1064,6 +1064,16 @@ That is structural, not flaky: the gates exist to catch UI regressions -- broken
 
 **A gap this leaves, stated rather than hidden:** the gates never exercise the real-API build, so a regression that appears only with mocks off -- the service-worker unregistration, or an endpoint's error state -- will not be caught before deployment. Closing it properly means smoke-testing the deployed site, which needs an authenticated session; `e2e/smoke.mjs` already accepts an external base URL, so the route exists when it is worth the setup.
 
+**The cutover exposed content written for a fleet that does not exist.** Two defects, found by reading the live portal rather than by any test:
+
+**The guided tour is scripted against the wireframe's invented estate, and is now hidden.** It was never data-driven. Step 8 of 18 navigates to `/baselines/DS` — Data Science — which `BaselinesPage` renders as **Not Found**, because this estate has no such persona; the tour then keeps narrating over a 404. The script names "Contact Centre" and "Field Engineer" where the fleet has Call Centre and Field Services, opens with "seven personas, twelve thousand devices" against six and five thousand, and — worst — asserts *findings*: "the same two personas with the weakest mapping and the worst device fit". There is no weakest mapping in this data; every title maps at 100% confidence. A walkthrough that states things the screen disproves is worse than no walkthrough, so the button is behind `VITE_SHOW_TOUR`, off by default.
+
+The flag is its own rather than reusing `VITE_USE_MOCKS`: the tour is not a property of the data source, it is a feature whose script is stale, and conflating the two would have hidden it for the wrong reason. Vitest sets it on, so all eighteen steps stay covered and the feature does not rot while it waits. Rewriting the narration is real work — the durations are tuned to a 150 wpm voiceover and `tour.test.tsx` asserts parity with the wireframe's script, so a rewrite means deliberately breaking that parity and deciding what story the real data tells.
+
+**"Seven personas" was written into the Personas page subtitle.** Removed rather than templated: the KPI directly beneath already states the count, and a number in prose goes stale the moment the estate changes — as that one did the day the portal started reading Fabric.
+
+**A third instance of the same pattern.** Mapping confidence is 100% for all 210 titles, with nothing in the review queue. After the uniform application inventory and the complete telemetry, this is the third place where synthetic data has no variance, and it empties the confidence story exactly as it emptied the Switch comparison. Worth stating plainly: the portal is correct, and the dataset has nothing to find.
+
 **Cutover done, 29 Sep 2026.** `VITE_USE_MOCKS=false`. The portal now serves Microsoft Fabric data on every page: six personas, 5,000 devices, 3,439 incidents, baselines from `Persona_Config_Dev`, and persona changes written back to it.
 
 The **DEMO DATA** badge disappears with the flag, and `shell.test.tsx` now asserts its *absence* rather than dropping the check. That keeps the claim honest in both directions: a portal presenting Fabric data must not call itself a demo, and — worse — a demo must never stop saying so.
