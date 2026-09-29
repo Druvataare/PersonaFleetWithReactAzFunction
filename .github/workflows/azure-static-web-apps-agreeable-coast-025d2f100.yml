@@ -33,8 +33,19 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Build
-        run: npm run build
+      # The two gates below click through the build served by `vite preview`,
+      # which is a static file server with no API behind it. They exist to
+      # catch UI regressions -- broken rendering, console errors, WCAG
+      # failures -- not to test Fabric, so they run against a build that still
+      # carries the mock API. Without this, the cutover to real data fails
+      # both gates on a 404 for every /api/* call, which is exactly what
+      # happened on 29 Sep 2026.
+      #
+      # A process environment variable takes precedence over apps/web/.env in
+      # Vite (verified with loadEnv), so this build is mocked whatever the
+      # committed flag says.
+      - name: Build with the mock API, for the quality gates
+        run: VITE_USE_MOCKS=true npm run build -w @pfc/web
 
       # Clicks through the minified build in Chrome; blocks the deploy on any browser error.
       - name: Production smoke test
@@ -43,6 +54,11 @@ jobs:
       # Every page at phone, tablet and desktop widths, and axe WCAG 2.1 AA in all seven themes.
       - name: Layout and accessibility audit
         run: npm run audit
+
+      # The artifact that actually ships, built from apps/web/.env and so
+      # pointing at the real API. Last, so it is what lands in apps/web/dist.
+      - name: Build for deployment
+        run: npm run build
 
       - name: Get Id Token
         id: idtoken
