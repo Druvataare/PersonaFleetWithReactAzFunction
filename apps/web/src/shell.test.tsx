@@ -99,10 +99,20 @@ describe("top bar", () => {
     expect(document.body).not.toHaveClass("types");
   });
 
-  it("offers the guided tour and flags demo data", () => {
+  it("offers the guided tour", () => {
     renderApp("/personas");
     expect(screen.getByRole("button", { name: /TOUR/ })).toBeEnabled();
-    expect(screen.getByText("DEMO DATA")).toBeInTheDocument();
+  });
+
+  /* The badge is the app's own statement about where its numbers come from,
+     so it must disappear the moment they are real. Asserting its absence
+     rather than deleting the check keeps the claim honest in both
+     directions: if VITE_USE_MOCKS were ever switched back on unnoticed, a
+     portal presenting Fabric data would start calling itself a demo -- and
+     the reverse, a demo not saying so, is worse. */
+  it("does not claim demo data once the real API is in use", () => {
+    renderApp("/personas");
+    expect(screen.queryByText("DEMO DATA")).not.toBeInTheDocument();
   });
 });
 

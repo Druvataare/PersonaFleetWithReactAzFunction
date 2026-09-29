@@ -1058,6 +1058,12 @@ What remains unverifiable by design: that `readerHandler` *rejects* an anonymous
 
 **A defect the cutover would have shipped: the mock service worker outlives its build flag.** Turning `VITE_USE_MOCKS` off stops `enableMocking()` starting the worker, but does nothing about `/mockServiceWorker.js` already registered in the browser of anyone who opened the demo. That registration persists independently of any build. It passes requests through rather than mocking them, so it would not serve wrong data, but it leaves an uncontrolled request interceptor running in production, and it is why the same URL can behave differently for two people — which is how this was noticed at all, one window showing seven personas from the mock and another showing six from Fabric, the difference being nothing but a DevTools bypass toggle. `main.tsx` now unregisters any `mockServiceWorker.js` registration whenever mocks are off. Removing it is the application's job because nothing else can reach it, and the unregistration is wrapped so a browser that blocks service workers can never stop the app starting.
 
+**Cutover done, 29 Sep 2026.** `VITE_USE_MOCKS=false`. The portal now serves Microsoft Fabric data on every page: six personas, 5,000 devices, 3,439 incidents, baselines from `Persona_Config_Dev`, and persona changes written back to it.
+
+The **DEMO DATA** badge disappears with the flag, and `shell.test.tsx` now asserts its *absence* rather than dropping the check. That keeps the claim honest in both directions: a portal presenting Fabric data must not call itself a demo, and — worse — a demo must never stop saying so.
+
+Still to do, deliberately after this has shipped and had time to run: delete `apps/web/public/mockServiceWorker.js` and its route rule, in that order, so browsers can still reach the script while `main.tsx` unregisters it.
+
 **Cutover checklist, from what the last two steps found.** Flipping the flag is not the whole job:
 
 - `apps/web/.env` to `VITE_USE_MOCKS=false`, which is what actually switches the data source.
