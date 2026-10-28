@@ -44,8 +44,14 @@ jobs:
       # A process environment variable takes precedence over apps/web/.env in
       # Vite (verified with loadEnv), so this build is mocked whatever the
       # committed flag says.
+      #
+      # VITE_SHOW_TOUR too: the guided tour is hidden in production until its
+      # script is rewritten against real data, but the smoke test still walks
+      # all eighteen steps so the feature does not rot while it waits. Setting
+      # it only for the unit tests and not here is what failed two deploys on
+      # 29 Sep 2026, with the smoke test timing out on a button that was gone.
       - name: Build with the mock API, for the quality gates
-        run: VITE_USE_MOCKS=true npm run build -w @pfc/web
+        run: VITE_USE_MOCKS=true VITE_SHOW_TOUR=true npm run build -w @pfc/web
 
       # Clicks through the minified build in Chrome; blocks the deploy on any browser error.
       - name: Production smoke test
